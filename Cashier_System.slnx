@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/scripts/" />
+  <Folder Name="/src/" />
+  <Folder Name="/src/Hosts/">
+    <Project Path="POS.WebAPI/POS.WebAPI.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/" />
+  <Folder Name="/src/Modules/Inventory/">
+    <Project Path="Inventory.Application/Inventory.Application.csproj" />
+    <Project Path="Inventory.Domain/Inventory.Domain.csproj" />
+    <Project Path="Inventory.Infrastructre/Inventory.Infrastructre.csproj" />
+  </Folder>
+  <Folder Name="/src/Shared/">
+    <Project Path="POS.Shared.Application/POS.Shared.Application.csproj" />
+    <Project Path="POS.Shared.Domain/POS.Shared.Domain.csproj" />
+    <Project Path="POS.Shared.Infrastructre/POS.Shared.Infrastructre.csproj" />
+  </Folder>
+</Solution>
