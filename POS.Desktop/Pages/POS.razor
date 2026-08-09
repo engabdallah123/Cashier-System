@@ -1,0 +1,374 @@
+@page "/"
+@using Microsoft.AspNetCore.Authorization
+@using global::POS.Desktop.Services.Api
+@using global::POS.Desktop.Services.Auth
+@using global::POS.Desktop.Services.State
+@using global::POS.Desktop.Services.Printing
+@attribute [Authorize]
+@inject PosApiClient ApiClient
+@inject CartStateContainer Cart
+@inject ShiftStateContainer Shift
+@inject CustomAuthStateProvider AuthState
+@inject IInvoicePrinterService Printer
+
+<div class="pos-layout" @onkeydown="HandleGlobalKeyDown" tabindex="0">
+    <!-- Left Panel: Catalog & Search -->
+    <div class="catalog-panel">
+        <div style="display: flex; gap: 0.75rem;">
+            <!-- Barcode Scanner HID Input -->
+            <div class="search-box" style="flex: 1;">
+                <i class="fa-solid fa-barcode"></i>
+                <input @ref="barcodeInputRef" 
+                       @bind="scannedBarcode" 
+                       @bind:event="oninput" 
+                       @onkeyup="HandleBarcodeKeyUp"
+                       placeholder="Scan Barcode (HID) or enter manually... [Press Enter]" 
+                       style="border-color: var(--accent-blue);" />
+            </div>
+
+            <!-- Product Search Input -->
+            <div class="search-box" style="flex: 1;">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input @bind="searchTerm" 
+                       @bind:event="oninput" 
+                       @onkeyup="SearchProducts" 
+                       placeholder="Search products by name... [F1]" />
+            </div>
+        </div>
+
+        <!-- Categories Bar -->
+        <div class="category-bar">
+            <button class="cat-btn @(selectedCategoryId == null ? "active" : "")" @onclick="() => FilterByCategory(null)">
+                All Categories
+            </button>
+            @foreach (var cat in categories)
+            {
+                <button class="cat-btn @(selectedCategoryId == cat.Id ? "active" : "")" @onclick="() => FilterByCategory(cat.Id)">
+                    @cat.NameAr
+                </button>
+            }
+        </div>
+
+        <!-- Products Grid -->
+        <div class="products-grid">
+            @if (isLoadingProducts)
+            {
+                <div style="grid-column: 1 / -1; text-align: center; padding: 2rem;">
+                    <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--accent-blue);"></i>
+                    <p style="margin-top: 0.5rem; color: var(--text-secondary);">Loading catalog...</p>
+                </div>
+            }
+            else if (!filteredProducts.Any())
+            {
+                <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-secondary);">
+                    <i class="fa-solid fa-box-open fa-2x"></i>
+                    <p style="margin-top: 0.5rem;">No products found</p>
+                </div>
+            }
+            else
+            {
+                @foreach (var prod in filteredProducts)
+                {
+                    <div class="product-card" @onclick="() => AddToCart(prod)">
+                        <div>
+                            <div class="product-title">@prod.NameAr</div>
+                            <div class="product-stock">Stock: @prod.QuantityInStock.ToString("N0") @prod.UnitSymbol</div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 0.5rem;">
+                            <span class="product-price">@prod.SellingPrice.ToString("N2") EGP</span>
+                            <i class="fa-solid fa-plus-circle" style="color: var(--accent-blue); font-size: 1.2rem;"></i>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+    </div>
+
+    <!-- Right Panel: Cart & Actions -->
+    <div class="cart-panel">
+        <div class="cart-header">
+            <div>
+                <h3 style="font-size: 1.1rem; font-weight: 700;">Cart Order</h3>
+                <span style="font-size: 0.8rem; color: var(--text-secondary);">Customer: @Cart.CustomerName</span>
+            </div>
+            <button class="btn btn-amber" style="padding: 0.35rem 0.65rem; font-size: 0.8rem;" @onclick="OpenCustomerModal">
+                <i class="fa-solid fa-user"></i> Customer [F2]
+            </button>
+        </div>
+
+        <!-- Cart Items List -->
+        <div class="cart-items">
+            @if (!Cart.Items.Any())
+            {
+                <div style="text-align: center; margin-auto: auto; color: var(--text-secondary); padding: 3rem 0;">
+                    <i class="fa-solid fa-cart-shopping fa-3x" style="opacity: 0.3;"></i>
+                    <p style="margin-top: 0.5rem;">Cart is empty. Scan or select items.</p>
+                </div>
+            }
+            else
+            {
+                @foreach (var item in Cart.Items)
+                {
+                    <div class="cart-item">
+                        <div class="cart-item-info">
+                            <div class="cart-item-name">@item.ProductName</div>
+                            <div class="cart-item-price">@item.UnitPrice.ToString("N2") x @item.Quantity = @item.LineTotal.ToString("N2") EGP</div>
+                        </div>
+
+                        <div class="qty-controls">
+                            <button class="qty-btn" @onclick="() => Cart.UpdateQuantity(item.ProductId, item.Quantity - 1)">-</button>
+                            <span style="font-weight: 600; width: 28px; text-align: center; font-size: 0.9rem;">@item.Quantity</span>
+                            <button class="qty-btn" @onclick="() => Cart.UpdateQuantity(item.ProductId, item.Quantity + 1)">+</button>
+                            <button class="qty-btn" style="background: var(--accent-red); margin-left: 0.3rem;" @onclick="() => Cart.RemoveItem(item.ProductId)">
+                                <i class="fa-solid fa-trash" style="font-size: 0.75rem;"></i>
+                            </button>
+                        </div>
+                    </div>
+                }
+            }
+        </div>
+
+        <!-- Cart Totals Summary -->
+        <div class="cart-summary">
+            <div class="summary-row">
+                <span>Subtotal</span>
+                <span>@Cart.SubTotal.ToString("N2") EGP</span>
+            </div>
+            <div class="summary-row" style="color: var(--accent-amber);">
+                <span>Discount</span>
+                <span>-@Cart.TotalDiscount.ToString("N2") EGP</span>
+            </div>
+            <div class="summary-row">
+                <span>Tax</span>
+                <span>+@Cart.TotalTax.ToString("N2") EGP</span>
+            </div>
+            <div class="summary-row total">
+                <span>Total Amount</span>
+                <span>@Cart.GrandTotal.ToString("N2") EGP</span>
+            </div>
+        </div>
+
+        <!-- Action Buttons Grid -->
+        <div class="pos-actions">
+            <button class="btn btn-danger" @onclick="() => Cart.Clear()">
+                <i class="fa-solid fa-xmark"></i> Clear [Esc]
+            </button>
+            <button class="btn btn-success" disabled="@(!Cart.Items.Any() || isProcessingSale)" @onclick="OpenPaymentModal">
+                <i class="fa-solid fa-money-bill-wave"></i> Checkout [F8]
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Checkout Payment Modal -->
+@if (showPaymentModal)
+{
+    <div class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 style="font-size: 1.2rem; font-weight: 700;">Checkout & Payment</h3>
+                <button style="background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer;" @onclick="ClosePaymentModal">🗙</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(saleError))
+            {
+                <div style="background-color: rgba(239,68,68,0.2); border: 1px solid var(--accent-red); color: #f87171; padding: 0.6rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1rem;">
+                    @saleError
+                </div>
+            }
+
+            <div style="display: flex; flex-direction: column; gap: 0.8rem; margin-bottom: 1.2rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: bold; background: var(--bg-primary); padding: 0.75rem; border-radius: 0.5rem;">
+                    <span>Total Due:</span>
+                    <span style="color: var(--accent-green);">@Cart.GrandTotal.ToString("N2") EGP</span>
+                </div>
+
+                <div>
+                    <label style="font-size: 0.85rem; color: var(--text-secondary);">Payment Method</label>
+                    <select @bind="Cart.PaymentMethod" style="width: 100%; padding: 0.6rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white; margin-top: 0.3rem;">
+                        <option value="Cash">Cash</option>
+                        <option value="Visa">Visa / Card</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label style="font-size: 0.85rem; color: var(--text-secondary);">Paid Amount (EGP)</label>
+                    <input type="number" @bind="paidAmount" @bind:event="oninput" style="width: 100%; padding: 0.6rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white; font-size: 1.1rem; font-weight: bold; margin-top: 0.3rem;" />
+                </div>
+
+                <div style="display: flex; justify-content: space-between; font-weight: 600; color: var(--accent-amber);">
+                    <span>Change Due:</span>
+                    <span>@Math.Max(0, paidAmount - Cart.GrandTotal).ToString("N2") EGP</span>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 0.5rem;">
+                <button class="btn btn-danger" style="flex: 1;" @onclick="ClosePaymentModal">Cancel</button>
+                <button class="btn btn-success" style="flex: 2;" disabled="@isProcessingSale" @onclick="SubmitSale">
+                    @if (isProcessingSale)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin"></i> <span>Processing...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-check-circle"></i> <span>Complete Sale & Print</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private ElementReference barcodeInputRef;
+    private string scannedBarcode = string.Empty;
+    private string searchTerm = string.Empty;
+
+    private List<ProductDto> products = new();
+    private List<ProductDto> filteredProducts = new();
+    private List<CategoryDto> categories = new();
+    private Guid? selectedCategoryId;
+
+    private bool isLoadingProducts = true;
+    private bool showPaymentModal = false;
+    private bool isProcessingSale = false;
+    private decimal paidAmount = 0;
+    private string? saleError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Cart.OnCartChanged += StateHasChanged;
+        await LoadCatalogAsync();
+    }
+
+    private async Task LoadCatalogAsync()
+    {
+        isLoadingProducts = true;
+        try
+        {
+            products = await ApiClient.GetProductsAsync();
+            categories = await ApiClient.GetCategoriesAsync();
+            filteredProducts = products;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading catalog: {ex.Message}");
+        }
+        finally
+        {
+            isLoadingProducts = false;
+        }
+    }
+
+    private async Task HandleBarcodeKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(scannedBarcode))
+        {
+            var code = scannedBarcode.Trim();
+            scannedBarcode = string.Empty;
+
+            // Direct Barcode Lookup via Backend Endpoint
+            var prod = await ApiClient.GetProductByBarcodeAsync(code);
+            if (prod is not null)
+            {
+                AddToCart(prod);
+            }
+            else
+            {
+                saleError = $"Product with barcode '{code}' not found.";
+            }
+        }
+    }
+
+    private void AddToCart(ProductDto prod)
+    {
+        saleError = null;
+        Cart.AddOrIncrementProduct(prod.Id, prod.Barcode, prod.NameAr, prod.SellingPrice, prod.TaxRate);
+    }
+
+    private void SearchProducts()
+    {
+        if (string.IsNullOrWhiteSpace(searchTerm))
+        {
+            filteredProducts = selectedCategoryId == null ? products : products.Where(p => p.CategoryId == selectedCategoryId).ToList();
+        }
+        else
+        {
+            filteredProducts = products.Where(p => p.NameAr.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) || p.Barcode.Contains(searchTerm)).ToList();
+        }
+    }
+
+    private void FilterByCategory(Guid? catId)
+    {
+        selectedCategoryId = catId;
+        SearchProducts();
+    }
+
+    private void OpenPaymentModal()
+    {
+        paidAmount = Cart.GrandTotal;
+        showPaymentModal = true;
+    }
+
+    private void ClosePaymentModal() => showPaymentModal = false;
+
+    private async Task SubmitSale()
+    {
+        if (!Shift.IsShiftOpen)
+        {
+            saleError = "Cannot complete sale: No open shift. Please open a shift first.";
+            return;
+        }
+
+        isProcessingSale = true;
+        saleError = null;
+
+        try
+        {
+            var cmd = new CreateSaleCommand(
+                CashierId: AuthState.UserId,
+                CustomerId: Cart.CustomerId,
+                ShiftId: Shift.ShiftId,
+                SubTotal: Cart.SubTotal,
+                DiscountAmount: Cart.TotalDiscount,
+                TaxAmount: Cart.TotalTax,
+                TotalAmount: Cart.GrandTotal,
+                PaidAmount: paidAmount,
+                ChangeAmount: Math.Max(0, paidAmount - Cart.GrandTotal),
+                PaymentMethod: Cart.PaymentMethod,
+                Notes: "POS Desktop Sale",
+                Items: Cart.Items.Select(i => new CreateSaleItemCommand(i.ProductId, i.Quantity, i.UnitPrice, i.Discount, i.LineTax)).ToList());
+
+            var saleId = await ApiClient.CreateSaleAsync(cmd);
+            if (saleId.HasValue)
+            {
+                var createdId = saleId.Value;
+                Cart.Clear();
+                ClosePaymentModal();
+
+                // Trigger QuestPDF Receipt Print Flow
+                await Printer.PrintInvoiceAsync(createdId);
+            }
+            else
+            {
+                saleError = "Failed to create sale. Please check backend validation rules.";
+            }
+        }
+        catch (Exception ex)
+        {
+            saleError = $"Sale error: {ex.Message}";
+        }
+        finally
+        {
+            isProcessingSale = false;
+        }
+    }
+
+    private void OpenCustomerModal() { /* Customer modal implementation */ }
+
+    private void HandleGlobalKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "F8" && Cart.Items.Any()) OpenPaymentModal();
+        if (e.Key == "Escape") Cart.Clear();
+    }
+}

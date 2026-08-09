@@ -1,0 +1,78 @@
+@page "/settings"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin,Manager")]
+@inject HttpClient Http
+
+<div style="max-width: 600px;">
+    <h2 style="font-weight: 700; margin-bottom: 1.5rem;">Store & POS Settings</h2>
+
+    @if (setting is not null)
+    {
+        <div class="modal-card" style="width: 100%;">
+            <div style="margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary);">Store Name</label>
+                <input @bind="setting.StoreName" class="search-box" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;" />
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary);">Address</label>
+                <input @bind="setting.Address" class="search-box" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;" />
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary);">Phone</label>
+                <input @bind="setting.Phone" class="search-box" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;" />
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary);">Currency</label>
+                <input @bind="setting.Currency" class="search-box" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;" />
+            </div>
+
+            <div style="margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary);">Invoice Footer Message</label>
+                <textarea @bind="setting.InvoiceFooterMessage" rows="2" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;"></textarea>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem;">
+                <input type="checkbox" @bind="setting.AllowNegativeStock" id="negStock" />
+                <label for="negStock" style="font-size: 0.9rem;">Allow Negative Stock Sales (Admin / Manager override)</label>
+            </div>
+
+            <button class="btn btn-primary" style="width: 100%;" @onclick="SaveSettings">
+                <i class="fa-solid fa-save"></i> Save Store Settings
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    public class StoreSettingModel
+    {
+        public string StoreName { get; set; } = string.Empty;
+        public string? Address { get; set; }
+        public string? Phone { get; set; }
+        public string Currency { get; set; } = "EGP";
+        public string? InvoiceFooterMessage { get; set; }
+        public bool AllowNegativeStock { get; set; }
+    }
+
+    private StoreSettingModel? setting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            setting = await Http.GetFromJsonAsync<StoreSettingModel>("api/settings");
+        }
+        catch { }
+    }
+
+    private async Task SaveSettings()
+    {
+        if (setting is not null)
+        {
+            await Http.PutAsJsonAsync("api/settings", setting);
+        }
+    }
+}

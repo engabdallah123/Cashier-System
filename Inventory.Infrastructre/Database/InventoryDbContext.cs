@@ -1,22 +1,14 @@
+using Inventory.Domain.Catalog.Categories;
+using Inventory.Domain.Catalog.Products.Entities;
+using Inventory.Domain.Catalog.Units;
+using Inventory.Domain.Stock.StockMovements;
 using MediatR;
-using POS.Shared.Domain;
+using Unit = Inventory.Domain.Catalog.Units.Unit;
 using Microsoft.EntityFrameworkCore;
 using POS.Shared.Application.Exceptions;
+using POS.Shared.Domain;
 using POS.Shared.Infrastructure.Database;
 using System.Reflection;
-using Inventory.Domain.Catalog.Products.Entities;
-using Inventory.Domain.Catalog.ProductBarcodes;
-using Inventory.Domain.Catalog.Categories;
-using Inventory.Domain.Catalog.Brands;
-using Inventory.Domain.Catalog.Units;
-using Inventory.Domain.Stock.Warehouses;
-using Inventory.Domain.Stock.StockBalances;
-using Inventory.Domain.Stock.StockMovements;
-using Inventory.Domain.Stock.StockTransfers;
-using Inventory.Domain.Stock.StockTransferItems;
-using Inventory.Domain.Pricing.PriceLists;
-using Inventory.Domain.Pricing.ProductPrices;
-using Inventory.Domain.Batches.ProductBatches;
 
 namespace Inventory.Infrastructre.Database;
 
@@ -30,26 +22,10 @@ public class InventoryDbContext : DbContext
         _mediator = mediator;
     }
 
-    // Catalog
     public DbSet<Product> Products { get; set; }
-    public DbSet<ProductBarcode> ProductBarcodes { get; set; }
     public DbSet<Category> Categories { get; set; }
-    public DbSet<Brand> Brands { get; set; }
-    public DbSet<UnitMeasure> Units { get; set; }
-
-    // Stock
-    public DbSet<Warehouse> Warehouses { get; set; }
-    public DbSet<StockBalance> StockBalances { get; set; }
+    public DbSet<Unit> Units { get; set; }
     public DbSet<StockMovement> StockMovements { get; set; }
-    public DbSet<StockTransfer> StockTransfers { get; set; }
-    public DbSet<StockTransferItem> StockTransferItems { get; set; }
-
-    // Pricing
-    public DbSet<PriceList> PriceLists { get; set; }
-    public DbSet<ProductPrice> ProductPrices { get; set; }
-
-    // Batches
-    public DbSet<ProductBatch> ProductBatches { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -1,4 +1,4 @@
-﻿using System.Linq.Expressions;
+using System.Linq.Expressions;
 
 namespace POS.Shared.Domain
 {
@@ -10,8 +10,8 @@ namespace POS.Shared.Domain
 
     public interface IBaseRepository<T> where T : class
     {
-        T GetById(int id);
-        Task<T> GetByIdAsync(int id);
+        T GetById(Guid id);
+        Task<T> GetByIdAsync(Guid id);
 
         IEnumerable<T> GetAll();
         IEnumerable<T> GetAll(string[] includes = null); // my code

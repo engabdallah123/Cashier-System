@@ -13,12 +13,15 @@ internal sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
 
         builder.HasKey(c => c.Id);
 
-        builder.Property(c => c.Name)
+        builder.Property(c => c.NameAr)
             .IsRequired()
-            .HasMaxLength(150);
+            .HasMaxLength(200);
 
-        builder.Property(c => c.Description)
-            .HasMaxLength(500);
+        builder.Property(c => c.NameEn)
+            .IsRequired()
+            .HasMaxLength(200);
+
+        builder.Property(c => c.ParentCategoryId);
 
         builder.Property(c => c.IsActive)
             .IsRequired();
@@ -26,6 +29,6 @@ internal sealed class CategoryConfiguration : IEntityTypeConfiguration<Category>
         builder.Property(c => c.CreatedAt)
             .IsRequired();
 
-        builder.HasIndex(c => c.Name).IsUnique();
+        builder.HasIndex(c => c.ParentCategoryId);
     }
 }

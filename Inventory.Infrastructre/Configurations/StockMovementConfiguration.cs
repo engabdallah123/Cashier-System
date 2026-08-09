@@ -11,35 +11,32 @@ internal sealed class StockMovementConfiguration : IEntityTypeConfiguration<Stoc
     {
         builder.ToTable("StockMovements", Schemas.Inventory);
 
-        builder.HasKey(sm => sm.Id);
+        builder.HasKey(s => s.Id);
 
-        builder.Property(sm => sm.Type)
-            .IsRequired()
-            .HasConversion<int>();
-
-        builder.Property(sm => sm.Quantity)
+        builder.Property(s => s.ProductId)
             .IsRequired();
 
-        builder.Property(sm => sm.BeforeQuantity)
+        builder.Property(s => s.Quantity)
+            .HasPrecision(18, 3)
             .IsRequired();
 
-        builder.Property(sm => sm.AfterQuantity)
+        builder.Property(s => s.Type)
             .IsRequired();
 
-        builder.Property(sm => sm.ReferenceType)
-            .IsRequired()
+        builder.Property(s => s.Reference)
             .HasMaxLength(100);
 
-        builder.Property(sm => sm.CreatedBy)
-            .IsRequired()
-            .HasMaxLength(200);
+        builder.Property(s => s.Notes)
+            .HasMaxLength(500);
 
-        builder.Property(sm => sm.CreatedAt)
+        builder.Property(s => s.MovementDate)
             .IsRequired();
 
-        builder.HasIndex(sm => sm.ProductId);
-        builder.HasIndex(sm => sm.WarehouseId);
-        builder.HasIndex(sm => sm.CreatedAt);
-        builder.HasIndex(sm => sm.Type);
+        builder.Property(s => s.UserId)
+            .IsRequired();
+
+        builder.HasIndex(s => s.ProductId);
+        builder.HasIndex(s => s.MovementDate);
+        builder.HasIndex(s => s.Type);
     }
 }

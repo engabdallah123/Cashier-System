@@ -1,0 +1,41 @@
+@page "/purchases"
+@using Microsoft.AspNetCore.Authorization
+@using global::POS.Desktop.Services.Api
+@attribute [Authorize]
+@inject PosApiClient ApiClient
+
+<div>
+    <h2 style="font-weight: 700; margin-bottom: 1.5rem;">Purchases & Suppliers</h2>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+        <div class="modal-card" style="width: 100%;">
+            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem;">Suppliers List</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Supplier Name</th>
+                        <th>Phone</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var sup in suppliers)
+                    {
+                        <tr>
+                            <td style="font-weight: 600;">@sup.Name</td>
+                            <td>@sup.Phone</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<SupplierDto> suppliers = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        suppliers = await ApiClient.GetSuppliersAsync();
+    }
+}

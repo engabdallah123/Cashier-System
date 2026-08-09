@@ -16,13 +16,13 @@ namespace Inventory.Application.Catalog.Categories.Commands.UpdateCategory
 
         public async Task<Result> Handle(UpdateCategoryCommand request, CancellationToken cancellationToken)
         {
-            var category = await _unitOfWork.CategoryRepository.FindAsync(c => c.Id == request.Id);
+            var category = await _unitOfWork.CategoryRepository.GetByIdAsync(request.Id);
             if (category is null)
                 return Result.Failure(CategoryErrors.NotFound(request.Id));
 
-            var updateRes = category.UpdateInfo(request.Name, request.Description);
-            if (updateRes.IsFailure)
-                return updateRes;
+            var updateResult = category.Update(request.NameAr, request.NameEn, request.ParentCategoryId);
+            if (updateResult.IsFailure)
+                return updateResult;
 
             _unitOfWork.CategoryRepository.Update(category);
             await _unitOfWork.SaveChangesAsync(cancellationToken);

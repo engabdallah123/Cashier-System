@@ -17,34 +17,25 @@ namespace Inventory.Application.Catalog.Products.Commands.CreateProduct
 
         public async Task<Result<Guid>> Handle(CreateProductCommand request, CancellationToken cancellationToken)
         {
-            var skuExists = await _unitOfWork.ProductRepository
-                .SkuExistsAsync(request.Sku.Trim().ToUpperInvariant(), cancellationToken);
+            var barcodeExists = await _unitOfWork.ProductRepository
+                .BarcodeExistsAsync(request.Barcode.Trim(), cancellationToken);
 
-            if (skuExists)
-                return Result<Guid>.Failure(ProductErrors.DuplicateSku);
-
-            var skuResult = Sku.Create(request.Sku);
-            if (skuResult.IsFailure)
-                return Result<Guid>.Failure(skuResult.Error);
-
-            var priceResult = Money.Create(request.Price, request.Currency);
-            if (priceResult.IsFailure)
-                return Result<Guid>.Failure(priceResult.Error);
+            if (barcodeExists)
+                return Result<Guid>.Failure(ProductErrors.DuplicateBarcode);
 
             var productResult = Product.Create(
-                request.Name,
-                skuResult.Value!,
-                priceResult.Value!,
-                request.LowStockThreshold,
-                categoryId: request.CategoryId,
-                brandId: request.BrandId,
-                unitId: request.UnitId);
+                request.Barcode, request.NameAr, request.NameEn,
+                request.CategoryId, request.UnitId,
+                request.PurchasePrice, request.SellingPrice, request.WholesalePrice,
+                request.SupplierId, request.Description,
+                request.ReorderLevel, request.MaxStockLevel,
+                request.IsWeighable, request.IsActive, request.TrackExpiry,
+                request.TaxRate, request.ImageUrl);
 
             if (productResult.IsFailure)
                 return Result<Guid>.Failure(productResult.Error);
 
             var product = productResult.Value!;
-
             await _unitOfWork.ProductRepository.AddAsync(product, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 

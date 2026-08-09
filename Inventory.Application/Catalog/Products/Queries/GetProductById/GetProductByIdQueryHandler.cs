@@ -21,26 +21,18 @@ namespace Inventory.Application.Catalog.Products.Queries.GetProductById
 
             const string sql = """
                 SELECT 
-                    p.Id,
-                    p.Name,
-                    p.Sku,
-                    p.Price,
-                    p.Currency,
-                    p.QuantityOnHand,
-                    p.LowStockThreshold,
-                    p.IsActive,
-                    p.CategoryId,
-                    c.Name AS CategoryName,
-                    p.BrandId,
-                    b.Name AS BrandName,
-                    p.UnitId,
-                    u.Name AS UnitName,
-                    p.CreatedAt,
-                    p.UpdatedAt
+                    p.Id, p.Barcode, p.NameAr, p.NameEn, p.Description,
+                    p.CategoryId, c.NameAr AS CategoryName,
+                    p.UnitId, u.NameAr AS UnitName,
+                    p.SupplierId, sup.Name AS SupplierName,
+                    p.PurchasePrice, p.SellingPrice, p.WholesalePrice,
+                    p.QuantityInStock, p.ReorderLevel, p.MaxStockLevel,
+                    p.IsWeighable, p.IsActive, p.TrackExpiry, p.TaxRate, p.ImageUrl,
+                    p.CreatedAt, p.UpdatedAt
                 FROM [Inventory].[Products] p
                 LEFT JOIN [Inventory].[Categories] c ON p.CategoryId = c.Id
-                LEFT JOIN [Inventory].[Brands] b ON p.BrandId = b.Id
                 LEFT JOIN [Inventory].[Units] u ON p.UnitId = u.Id
+                LEFT JOIN [Purchases].[Suppliers] sup ON p.SupplierId = sup.Id
                 WHERE p.Id = @Id
                 """;
 

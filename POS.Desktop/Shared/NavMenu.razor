@@ -1,0 +1,65 @@
+@inject CustomAuthStateProvider AuthState
+
+<div class="sidebar">
+    <div class="sidebar-header">
+        <i class="fa-solid fa-cash-register"></i>
+        <h1>POS System</h1>
+    </div>
+
+    <ul class="nav-list">
+        <li>
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <i class="fa-solid fa-cash-register"></i> POS Screen
+            </NavLink>
+        </li>
+        <li>
+            <NavLink class="nav-link" href="shifts">
+                <i class="fa-solid fa-clock-rotate-left"></i> Shifts
+            </NavLink>
+        </li>
+        <li>
+            <NavLink class="nav-link" href="products">
+                <i class="fa-solid fa-boxes-stacked"></i> Products
+            </NavLink>
+        </li>
+        <li>
+            <NavLink class="nav-link" href="categories">
+                <i class="fa-solid fa-tags"></i> Categories
+            </NavLink>
+        </li>
+        <li>
+            <NavLink class="nav-link" href="purchases">
+                <i class="fa-solid fa-truck-ramp-box"></i> Purchases
+            </NavLink>
+        </li>
+        <li>
+            <NavLink class="nav-link" href="sales">
+                <i class="fa-solid fa-receipt"></i> Sales History
+            </NavLink>
+        </li>
+        <li>
+            <NavLink class="nav-link" href="expenses">
+                <i class="fa-solid fa-wallet"></i> Expenses
+            </NavLink>
+        </li>
+
+        @if (AuthState.UserRole == "Admin" || AuthState.UserRole == "Manager")
+        {
+            <li>
+                <NavLink class="nav-link" href="dashboard">
+                    <i class="fa-solid fa-chart-line"></i> Dashboard
+                </NavLink>
+            </li>
+            <li>
+                <NavLink class="nav-link" href="users">
+                    <i class="fa-solid fa-users"></i> Users & Roles
+                </NavLink>
+            </li>
+            <li>
+                <NavLink class="nav-link" href="settings">
+                    <i class="fa-solid fa-gear"></i> Settings
+                </NavLink>
+            </li>
+        }
+    </ul>
+</div>

@@ -1,8 +1,25 @@
+using Audit.Application;
+using Audit.Infrastructre;
+using Dashboard.Application;
+using Expenses.Application;
+using Expenses.Infrastructre;
+using Identity.Application;
+using Identity.Infrastructre;
 using Inventory.Application;
 using Inventory.Infrastructre;
 using POS.Shared.Application;
 using POS.Shared.Infrastructure;
 using POS.WebAPI.Middlewares;
+using Purchases.Application;
+using Purchases.Infrastructre;
+using Returns.Application;
+using Returns.Infrastructre;
+using Sales.Application;
+using Sales.Infrastructre;
+using Settings.Application;
+using Settings.Infrastructre;
+using Shifts.Application;
+using Shifts.Infrastructre;
 
 namespace POS.WebAPI
 {
@@ -10,15 +27,53 @@ namespace POS.WebAPI
     {
         public static void Main(string[] args)
         {
+            // Set QuestPDF License to Community
+            QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
             var builder = WebApplication.CreateBuilder(args);
 
             // Add Shared Services
             builder.Services.AddSharedApplication();
             builder.Services.AddSharedInfrastructure(builder.Configuration);
 
+            // Add Identity Services
+            builder.Services.AddIdentityApplication();
+            builder.Services.AddIdentityInfrastructure(builder.Configuration);
+
+            // Add Shifts Services
+            builder.Services.AddShiftsApplication();
+            builder.Services.AddShiftsInfrastructure(builder.Configuration);
+
             // Add Inventory Module Services
             builder.Services.AddInventoryApplication();
             builder.Services.AddInventoryInfrastructure(builder.Configuration);
+
+            // Add Purchases Module Services
+            builder.Services.AddPurchasesApplication();
+            builder.Services.AddPurchasesInfrastructure(builder.Configuration);
+
+            // Add Sales Module Services
+            builder.Services.AddSalesApplication();
+            builder.Services.AddSalesInfrastructure(builder.Configuration);
+
+            // Add Returns Module Services
+            builder.Services.AddReturnsApplication();
+            builder.Services.AddReturnsInfrastructure(builder.Configuration);
+
+            // Add Expenses Module Services
+            builder.Services.AddExpensesApplication();
+            builder.Services.AddExpensesInfrastructure(builder.Configuration);
+
+            // Add Dashboard Module Services
+            builder.Services.AddDashboardApplication();
+
+            // Add Settings Module Services
+            builder.Services.AddSettingsApplication();
+            builder.Services.AddSettingsInfrastructure(builder.Configuration);
+
+            // Add Audit Module Services
+            builder.Services.AddAuditApplication();
+            builder.Services.AddAuditInfrastructure(builder.Configuration);
 
             builder.Services.AddControllers();
 
@@ -50,6 +105,7 @@ namespace POS.WebAPI
             app.UseHttpsRedirection();
             app.UseCors("AllowAll");
             app.UseCustomExceptionHandler();
+            app.UseAuthentication();
             app.UseAuthorization();
             app.MapControllers();
 

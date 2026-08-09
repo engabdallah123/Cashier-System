@@ -1,0 +1,116 @@
+using POS.Shared.Domain;
+using POS.Shared.Domain.Events.Sales;
+
+namespace Sales.Domain.Sales.Entities
+{
+    public sealed class Sale : Entity
+    {
+        private readonly List<SaleItem> _items = new();
+
+        public string InvoiceNumber { get; private set; } = default!;
+        public DateTime SaleDate { get; private set; }
+        public Guid CashierId { get; private set; }
+        public Guid? CustomerId { get; private set; }
+        public Guid ShiftId { get; private set; }
+
+        public decimal SubTotal { get; private set; }
+        public decimal DiscountAmount { get; private set; }
+        public decimal TaxAmount { get; private set; }
+        public decimal TotalAmount { get; private set; }
+
+        public decimal PaidAmount { get; private set; }
+        public decimal ChangeAmount { get; private set; }
+        public string PaymentMethod { get; private set; } = default!;
+        public SaleStatus Status { get; private set; }
+        public string? Notes { get; private set; }
+
+        public IReadOnlyList<SaleItem> Items => _items.AsReadOnly();
+
+        private Sale() { } // EF Core
+
+        private Sale(
+            Guid id, string invoiceNumber, Guid cashierId, Guid shiftId,
+            Guid? customerId, decimal discountAmount, decimal taxAmount,
+            decimal paidAmount, string paymentMethod, string? notes)
+            : base(id)
+        {
+            InvoiceNumber = invoiceNumber;
+            SaleDate = DateTime.UtcNow;
+            CashierId = cashierId;
+            ShiftId = shiftId;
+            CustomerId = customerId;
+            DiscountAmount = discountAmount;
+            TaxAmount = taxAmount;
+            PaidAmount = paidAmount;
+            PaymentMethod = paymentMethod;
+            Status = SaleStatus.Completed;
+            Notes = notes;
+        }
+
+        public static Result<Sale> Create(
+            string invoiceNumber, Guid cashierId, Guid shiftId,
+            Guid? customerId = null, decimal discountAmount = 0,
+            decimal taxAmount = 0, decimal paidAmount = 0,
+            string paymentMethod = "Cash", string? notes = null)
+        {
+            if (string.IsNullOrWhiteSpace(invoiceNumber))
+                return Result<Sale>.Failure(SaleErrors.InvoiceNumberRequired);
+
+            if (cashierId == Guid.Empty)
+                return Result<Sale>.Failure(SaleErrors.CashierIdRequired);
+
+            if (shiftId == Guid.Empty)
+                return Result<Sale>.Failure(SaleErrors.ShiftIdRequired);
+
+            var sale = new Sale(
+                Guid.NewGuid(), invoiceNumber.Trim(), cashierId, shiftId,
+                customerId, discountAmount, taxAmount, paidAmount,
+                paymentMethod.Trim(), notes?.Trim());
+
+            return Result<Sale>.Success(sale);
+        }
+
+        public Result AddItem(Guid productId, decimal quantity, decimal unitPrice, decimal discount = 0, decimal tax = 0)
+        {
+            var itemResult = SaleItem.Create(Id, productId, quantity, unitPrice, discount, tax);
+            if (itemResult.IsFailure)
+                return itemResult;
+
+            _items.Add(itemResult.Value!);
+            CalculateTotals();
+            return Result.Success();
+        }
+
+        public Result Complete()
+        {
+            if (!_items.Any())
+                return Result.Failure(SaleErrors.SaleHasNoItems);
+
+            if (PaidAmount < TotalAmount && !PaymentMethod.Equals("Credit", StringComparison.OrdinalIgnoreCase))
+                return Result.Failure(SaleErrors.InsufficientPaidAmount);
+
+            ChangeAmount = PaidAmount > TotalAmount ? PaidAmount - TotalAmount : 0;
+            Status = SaleStatus.Completed;
+
+            RaiseDomainEvent(new SaleCompletedIntegrationEvent(Id, ShiftId, TotalAmount, PaymentMethod));
+            return Result.Success();
+        }
+
+        public Result Cancel()
+        {
+            if (Status == SaleStatus.Cancelled)
+                return Result.Failure(SaleErrors.AlreadyCancelled);
+
+            Status = SaleStatus.Cancelled;
+            RaiseDomainEvent(new SaleCancelledIntegrationEvent(Id, ShiftId, TotalAmount));
+            return Result.Success();
+        }
+
+        private void CalculateTotals()
+        {
+            SubTotal = _items.Sum(i => i.Total);
+            TotalAmount = SubTotal - DiscountAmount + TaxAmount;
+            ChangeAmount = PaidAmount > TotalAmount ? PaidAmount - TotalAmount : 0;
+        }
+    }
+}

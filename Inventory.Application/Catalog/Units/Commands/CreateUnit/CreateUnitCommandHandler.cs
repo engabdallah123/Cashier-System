@@ -16,12 +16,11 @@ namespace Inventory.Application.Catalog.Units.Commands.CreateUnit
 
         public async Task<Result<Guid>> Handle(CreateUnitCommand request, CancellationToken cancellationToken)
         {
-            var unitResult = UnitMeasure.Create(request.Name, request.Abbreviation);
+            var unitResult = Unit.Create(request.NameAr, request.NameEn, request.Symbol);
             if (unitResult.IsFailure)
                 return Result<Guid>.Failure(unitResult.Error);
 
             var unit = unitResult.Value!;
-
             await _unitOfWork.UnitRepository.AddAsync(unit);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 

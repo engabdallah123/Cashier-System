@@ -4,47 +4,47 @@ namespace Inventory.Domain.Catalog.Categories
 {
     public sealed class Category : Entity
     {
-        public string Name { get; private set; } = default!;
-        public string? Description { get; private set; }
+        public string NameAr { get; private set; } = default!;
+        public string NameEn { get; private set; } = default!;
+        public Guid? ParentCategoryId { get; private set; }
         public bool IsActive { get; private set; }
         public DateTime CreatedAt { get; private set; }
 
         private Category() { } // EF Core
 
-        private Category(Guid id, string name, string? description)
+        private Category(Guid id, string nameAr, string nameEn, Guid? parentCategoryId)
             : base(id)
         {
-            Name = name;
-            Description = description;
+            NameAr = nameAr;
+            NameEn = nameEn;
+            ParentCategoryId = parentCategoryId;
             IsActive = true;
             CreatedAt = DateTime.UtcNow;
         }
 
-        public static Result<Category> Create(string name, string? description = null)
+        public static Result<Category> Create(string nameAr, string nameEn, Guid? parentCategoryId = null)
         {
-            if (string.IsNullOrWhiteSpace(name))
-                return Result<Category>.Failure(CategoryErrors.NameRequired);
+            if (string.IsNullOrWhiteSpace(nameAr))
+                return Result<Category>.Failure(CategoryErrors.NameArRequired);
 
-            var category = new Category(Guid.NewGuid(), name.Trim(), description?.Trim());
+            if (string.IsNullOrWhiteSpace(nameEn))
+                return Result<Category>.Failure(CategoryErrors.NameEnRequired);
+
+            var category = new Category(Guid.NewGuid(), nameAr.Trim(), nameEn.Trim(), parentCategoryId);
             return Result<Category>.Success(category);
         }
 
-        public Result UpdateInfo(string name, string? description)
+        public Result Update(string nameAr, string nameEn, Guid? parentCategoryId)
         {
-            if (string.IsNullOrWhiteSpace(name))
-                return Result.Failure(CategoryErrors.NameRequired);
+            if (string.IsNullOrWhiteSpace(nameAr))
+                return Result.Failure(CategoryErrors.NameArRequired);
 
-            Name = name.Trim();
-            Description = description?.Trim();
-            return Result.Success();
-        }
+            if (string.IsNullOrWhiteSpace(nameEn))
+                return Result.Failure(CategoryErrors.NameEnRequired);
 
-        public Result Rename(string name)
-        {
-            if (string.IsNullOrWhiteSpace(name))
-                return Result.Failure(CategoryErrors.NameRequired);
-
-            Name = name.Trim();
+            NameAr = nameAr.Trim();
+            NameEn = nameEn.Trim();
+            ParentCategoryId = parentCategoryId;
             return Result.Success();
         }
 

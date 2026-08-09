@@ -6,10 +6,13 @@ namespace Inventory.Application.Catalog.Products.Commands.CreateProduct
     {
         public CreateProductCommandValidator()
         {
-            RuleFor(x => x.Name).NotEmpty().WithMessage("اسم المنتج مطلوب.");
-            RuleFor(x => x.Sku).NotEmpty().MaximumLength(50).WithMessage("رمز SKU مطلوب ولا يتجاوز 50 حرفاً.");
-            RuleFor(x => x.Price).GreaterThanOrEqualTo(0).WithMessage("السعر لا يمكن أن يكون سالباً.");
-            RuleFor(x => x.LowStockThreshold).GreaterThanOrEqualTo(0).WithMessage("حد المخزون لا يمكن أن يكون سالباً.");
+            RuleFor(x => x.Barcode).NotEmpty().WithMessage("الباركود مطلوب.");
+            RuleFor(x => x.NameAr).NotEmpty().WithMessage("اسم المنتج بالعربية مطلوب.");
+            RuleFor(x => x.NameEn).NotEmpty().WithMessage("اسم المنتج بالإنجليزية مطلوب.");
+            RuleFor(x => x.CategoryId).NotEmpty().WithMessage("معرف التصنيف مطلوب.");
+            RuleFor(x => x.UnitId).NotEmpty().WithMessage("معرف الوحدة مطلوب.");
+            RuleFor(x => x.PurchasePrice).GreaterThanOrEqualTo(0).WithMessage("سعر الشراء لا يمكن أن يكون سالباً.");
+            RuleFor(x => x.SellingPrice).GreaterThanOrEqualTo(0).WithMessage("سعر البيع لا يمكن أن يكون سالباً.");
         }
     }
 }

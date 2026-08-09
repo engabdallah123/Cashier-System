@@ -18,44 +18,41 @@ namespace Inventory.Application.Catalog.Products.Queries.GetProducts
         {
             using var connection = _sqlConnectionFactory.CreateConnection();
 
-            var offset = (request.PageNumber - 1) * request.PageSize;
-
-            const string sql = """
+            var sql = """
                 SELECT 
-                    p.Id,
-                    p.Name,
-                    p.Sku,
-                    p.Price,
-                    p.Currency,
-                    p.QuantityOnHand,
-                    p.LowStockThreshold,
-                    p.IsActive,
-                    p.CategoryId,
-                    c.Name AS CategoryName,
-                    p.BrandId,
-                    b.Name AS BrandName,
-                    p.UnitId,
-                    u.Name AS UnitName,
-                    p.CreatedAt,
-                    p.UpdatedAt
+                    p.Id, p.Barcode, p.NameAr, p.NameEn, p.Description,
+                    p.CategoryId, c.NameAr AS CategoryName,
+                    p.UnitId, u.NameAr AS UnitName,
+                    p.SupplierId, sup.Name AS SupplierName,
+                    p.PurchasePrice, p.SellingPrice, p.WholesalePrice,
+                    p.QuantityInStock, p.ReorderLevel, p.MaxStockLevel,
+                    p.IsWeighable, p.IsActive, p.TrackExpiry, p.TaxRate, p.ImageUrl,
+                    p.CreatedAt, p.UpdatedAt
                 FROM [Inventory].[Products] p
                 LEFT JOIN [Inventory].[Categories] c ON p.CategoryId = c.Id
-                LEFT JOIN [Inventory].[Brands] b ON p.BrandId = b.Id
                 LEFT JOIN [Inventory].[Units] u ON p.UnitId = u.Id
-                WHERE (@SearchTerm IS NULL OR p.Name LIKE '%' + @SearchTerm + '%' OR p.Sku LIKE '%' + @SearchTerm + '%')
-                  AND (@CategoryId IS NULL OR p.CategoryId = @CategoryId)
-                  AND (@BrandId IS NULL OR p.BrandId = @BrandId)
-                  AND (@OnlyActive IS NULL OR p.IsActive = @OnlyActive)
-                ORDER BY p.Name ASC
-                OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY
+                LEFT JOIN [Purchases].[Suppliers] sup ON p.SupplierId = sup.Id
+                WHERE 1 = 1
                 """;
+
+            if (request.CategoryId.HasValue)
+                sql += " AND p.CategoryId = @CategoryId";
+
+            if (request.IsActive.HasValue)
+                sql += " AND p.IsActive = @IsActive";
+
+            if (!string.IsNullOrWhiteSpace(request.SearchTerm))
+                sql += " AND (p.NameAr LIKE @SearchStr OR p.NameEn LIKE @SearchStr OR p.Barcode LIKE @SearchStr)";
+
+            sql += " ORDER BY p.CreatedAt DESC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
+
+            var offset = (request.Page - 1) * request.PageSize;
 
             var products = await connection.QueryAsync<ProductResponse>(sql, new
             {
-                request.SearchTerm,
                 request.CategoryId,
-                request.BrandId,
-                request.OnlyActive,
+                request.IsActive,
+                SearchStr = $"%{request.SearchTerm}%",
                 Offset = offset,
                 request.PageSize
             });

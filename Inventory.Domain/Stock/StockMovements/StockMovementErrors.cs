@@ -1,22 +1,19 @@
-﻿using POS.Shared.Domain;
-using System;
-using System.Collections.Generic;
-using System.Text;
+using POS.Shared.Domain;
 
 namespace Inventory.Domain.Stock.StockMovements
 {
     public static class StockMovementErrors
     {
+        public static Error NotFound(Guid id) =>
+            new("StockMovement.NotFound", $"حركة المخزون بالرقم '{id}' غير موجودة.");
+
+        public static readonly Error ProductIdRequired =
+            new("StockMovement.ProductIdRequired", "معرف المنتج مطلوب.");
+
+        public static readonly Error UserIdRequired =
+            new("StockMovement.UserIdRequired", "معرف المستخدم مطلوب.");
+
         public static readonly Error ZeroQuantity =
-            new("StockMovement.ZeroQuantity", "لا يمكن تسجيل حركة مخزون بكمية صفر.");
-
-        public static readonly Error InconsistentBalance =
-            new("StockMovement.InconsistentBalance", "الرصيد بعد الحركة لا يطابق (قبل + الكمية).");
-
-        public static readonly Error ReferenceTypeRequired =
-            new("StockMovement.ReferenceTypeRequired", "نوع المرجع مطلوب.");
-
-        public static readonly Error CreatedByRequired =
-            new("StockMovement.CreatedByRequired", "بيانات المستخدم المنفذ للحركة مطلوبة.");
+            new("StockMovement.ZeroQuantity", "كمية الحركة لا يمكن أن تكون صفرًا.");
     }
 }

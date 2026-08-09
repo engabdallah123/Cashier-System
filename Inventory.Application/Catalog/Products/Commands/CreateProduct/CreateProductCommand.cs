@@ -3,12 +3,21 @@ using POS.Shared.Application.Messaging;
 namespace Inventory.Application.Catalog.Products.Commands.CreateProduct
 {
     public sealed record CreateProductCommand(
-        string Name,
-        string Sku,
-        decimal Price,
-        string Currency,
-        int LowStockThreshold,
-        Guid? CategoryId,
-        Guid? BrandId,
-        Guid? UnitId) : ICommand<Guid>;
+        string Barcode,
+        string NameAr,
+        string NameEn,
+        Guid CategoryId,
+        Guid UnitId,
+        decimal PurchasePrice,
+        decimal SellingPrice,
+        decimal WholesalePrice = 0,
+        Guid? SupplierId = null,
+        string? Description = null,
+        decimal ReorderLevel = 5,
+        decimal MaxStockLevel = 100,
+        bool IsWeighable = false,
+        bool IsActive = true,
+        bool TrackExpiry = false,
+        decimal TaxRate = 0,
+        string? ImageUrl = null) : ICommand<Guid>;
 }

@@ -21,17 +21,13 @@ namespace Inventory.Application.Catalog.Products.Commands.UpdateProduct
             if (product is null)
                 return Result.Failure(ProductErrors.NotFound(request.Id));
 
-            var priceResult = Money.Create(request.Price, request.Currency);
-            if (priceResult.IsFailure)
-                return priceResult;
-
-            var updateResult = product.UpdateInfo(
-                request.Name,
-                priceResult.Value!,
-                request.LowStockThreshold,
-                request.CategoryId,
-                request.BrandId,
-                request.UnitId);
+            var updateResult = product.Update(
+                request.Barcode, request.NameAr, request.NameEn, request.Description,
+                request.CategoryId, request.UnitId, request.SupplierId,
+                request.PurchasePrice, request.SellingPrice, request.WholesalePrice,
+                request.ReorderLevel, request.MaxStockLevel,
+                request.IsWeighable, request.IsActive, request.TrackExpiry,
+                request.TaxRate, request.ImageUrl);
 
             if (updateResult.IsFailure)
                 return updateResult;

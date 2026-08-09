@@ -1,108 +1,151 @@
 using Inventory.Domain.Catalog.Products.Errors;
-using Inventory.Domain.Catalog.Products.Events;
 using POS.Shared.Domain;
-using POS.Shared.Domain.Events.Inventory;
 
 namespace Inventory.Domain.Catalog.Products.Entities
 {
     public sealed class Product : Entity
     {
-        public string Name { get; private set; } = default!;
-        public Sku Sku { get; private set; } = default!;
-        public Money Price { get; private set; } = default!;
-        public int QuantityOnHand { get; private set; }
-        public int LowStockThreshold { get; private set; }
-        public bool IsActive { get; private set; } = true;
-        public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
-        public DateTime? UpdatedAt { get; private set; }
+        public string Barcode { get; private set; } = default!;
+        public string NameAr { get; private set; } = default!;
+        public string NameEn { get; private set; } = default!;
+        public string? Description { get; private set; }
 
-        public Guid? CategoryId { get; private set; }
-        public Guid? BrandId { get; private set; }
-        public Guid? UnitId { get; private set; }
+        public Guid CategoryId { get; private set; }
+        public Guid UnitId { get; private set; }
+        public Guid? SupplierId { get; private set; }
+
+        public decimal PurchasePrice { get; private set; }
+        public decimal SellingPrice { get; private set; }
+        public decimal WholesalePrice { get; private set; }
+
+        public decimal QuantityInStock { get; private set; }
+        public decimal ReorderLevel { get; private set; }
+        public decimal MaxStockLevel { get; private set; }
+
+        public bool IsWeighable { get; private set; }
+        public bool IsActive { get; private set; }
+        public bool TrackExpiry { get; private set; }
+        public decimal TaxRate { get; private set; }
+        public string? ImageUrl { get; private set; }
+
+        public DateTime CreatedAt { get; private set; }
+        public DateTime? UpdatedAt { get; private set; }
 
         private Product() { } // EF Core
 
-        private Product(Guid id, string name, Sku sku, Money price, int lowStockThreshold, bool isActive
-            , DateTime createdAt, DateTime? updatedAt, Guid? categoryId, Guid? brandId, Guid? unitId)
+        private Product(
+            Guid id, string barcode, string nameAr, string nameEn, string? description,
+            Guid categoryId, Guid unitId, Guid? supplierId,
+            decimal purchasePrice, decimal sellingPrice, decimal wholesalePrice,
+            decimal reorderLevel, decimal maxStockLevel,
+            bool isWeighable, bool isActive, bool trackExpiry, decimal taxRate, string? imageUrl)
             : base(id)
         {
-            Name = name;
-            Sku = sku;
-            Price = price;
-            LowStockThreshold = lowStockThreshold;
-            IsActive = isActive;
-            CreatedAt = createdAt;
-            UpdatedAt = updatedAt;
-            QuantityOnHand = 0;
+            Barcode = barcode;
+            NameAr = nameAr;
+            NameEn = nameEn;
+            Description = description;
             CategoryId = categoryId;
-            BrandId = brandId;
             UnitId = unitId;
+            SupplierId = supplierId;
+            PurchasePrice = purchasePrice;
+            SellingPrice = sellingPrice;
+            WholesalePrice = wholesalePrice;
+            QuantityInStock = 0;
+            ReorderLevel = reorderLevel;
+            MaxStockLevel = maxStockLevel;
+            IsWeighable = isWeighable;
+            IsActive = isActive;
+            TrackExpiry = trackExpiry;
+            TaxRate = taxRate;
+            ImageUrl = imageUrl;
+            CreatedAt = DateTime.UtcNow;
         }
 
         public static Result<Product> Create(
-            string name, Sku sku, Money price, int lowStockThreshold = 5, bool isActive = true, DateTime? updatedAt = null, Guid? categoryId = null, Guid? brandId = null, Guid? unitId = null)
+            string barcode, string nameAr, string nameEn, Guid categoryId, Guid unitId,
+            decimal purchasePrice, decimal sellingPrice, decimal wholesalePrice = 0,
+            Guid? supplierId = null, string? description = null,
+            decimal reorderLevel = 5, decimal maxStockLevel = 100,
+            bool isWeighable = false, bool isActive = true, bool trackExpiry = false,
+            decimal taxRate = 0, string? imageUrl = null)
         {
-            if (string.IsNullOrWhiteSpace(name))
-                return Result<Product>.Failure(ProductErrors.NameRequired);
+            if (string.IsNullOrWhiteSpace(barcode))
+                return Result<Product>.Failure(ProductErrors.BarcodeRequired);
 
-            if (lowStockThreshold < 0)
-                return Result<Product>.Failure(ProductErrors.LowStockThresholdInvalid);
+            if (string.IsNullOrWhiteSpace(nameAr))
+                return Result<Product>.Failure(ProductErrors.NameArRequired);
 
-            var product = new Product(Guid.NewGuid(), name.Trim(), sku, price, lowStockThreshold, isActive, DateTime.UtcNow, updatedAt, categoryId, brandId, unitId);
+            if (string.IsNullOrWhiteSpace(nameEn))
+                return Result<Product>.Failure(ProductErrors.NameEnRequired);
 
-            product.RaiseDomainEvent(new ProductCreatedDomainEvent(product.Id, sku.Value));
+            if (purchasePrice < 0)
+                return Result<Product>.Failure(ProductErrors.InvalidPurchasePrice);
+
+            if (sellingPrice < 0)
+                return Result<Product>.Failure(ProductErrors.InvalidSellingPrice);
+
+            var product = new Product(
+                Guid.NewGuid(), barcode.Trim(), nameAr.Trim(), nameEn.Trim(), description?.Trim(),
+                categoryId, unitId, supplierId,
+                purchasePrice, sellingPrice, wholesalePrice,
+                reorderLevel, maxStockLevel,
+                isWeighable, isActive, trackExpiry, taxRate, imageUrl?.Trim());
 
             return Result<Product>.Success(product);
         }
 
-        public Result UpdateInfo(string name, Money price, int lowStockThreshold, Guid? categoryId, Guid? brandId, Guid? unitId)
+        public Result Update(
+            string barcode, string nameAr, string nameEn, string? description,
+            Guid categoryId, Guid unitId, Guid? supplierId,
+            decimal purchasePrice, decimal sellingPrice, decimal wholesalePrice,
+            decimal reorderLevel, decimal maxStockLevel,
+            bool isWeighable, bool isActive, bool trackExpiry, decimal taxRate, string? imageUrl)
         {
-            if (string.IsNullOrWhiteSpace(name))
-                return Result.Failure(ProductErrors.NameRequired);
+            if (string.IsNullOrWhiteSpace(barcode))
+                return Result.Failure(ProductErrors.BarcodeRequired);
 
-            if (lowStockThreshold < 0)
-                return Result.Failure(ProductErrors.LowStockThresholdInvalid);
+            if (string.IsNullOrWhiteSpace(nameAr))
+                return Result.Failure(ProductErrors.NameArRequired);
 
-            Name = name.Trim();
-            Price = price;
-            LowStockThreshold = lowStockThreshold;
+            if (string.IsNullOrWhiteSpace(nameEn))
+                return Result.Failure(ProductErrors.NameEnRequired);
+
+            Barcode = barcode.Trim();
+            NameAr = nameAr.Trim();
+            NameEn = nameEn.Trim();
+            Description = description?.Trim();
             CategoryId = categoryId;
-            BrandId = brandId;
             UnitId = unitId;
+            SupplierId = supplierId;
+            PurchasePrice = purchasePrice;
+            SellingPrice = sellingPrice;
+            WholesalePrice = wholesalePrice;
+            ReorderLevel = reorderLevel;
+            MaxStockLevel = maxStockLevel;
+            IsWeighable = isWeighable;
+            IsActive = isActive;
+            TrackExpiry = trackExpiry;
+            TaxRate = taxRate;
+            ImageUrl = imageUrl?.Trim();
             UpdatedAt = DateTime.UtcNow;
 
             return Result.Success();
         }
 
-        public Result AdjustStock(int delta)
+        public Result AdjustStock(decimal delta, bool allowNegativeStock = false)
         {
-            var newQuantity = QuantityOnHand + delta;
+            var newQuantity = QuantityInStock + delta;
 
-            if (newQuantity < 0)
+            if (!allowNegativeStock && newQuantity < 0)
                 return Result.Failure(ProductErrors.InsufficientStock);
 
-            QuantityOnHand = newQuantity;
-
-            RaiseDomainEvent(new ProductStockChangedIntegrationEvent(Id, Sku.Value, QuantityOnHand, IsLowStock()));
-
-            return Result.Success();
-        }
-
-        public bool IsLowStock() => QuantityOnHand <= LowStockThreshold;
-        public bool IsOutOfStock() => QuantityOnHand == 0;
-
-        public Result Activate()
-        {
-            IsActive = true;
+            QuantityInStock = newQuantity;
             UpdatedAt = DateTime.UtcNow;
+
             return Result.Success();
         }
 
-        public Result Deactivate()
-        {
-            IsActive = false;
-            UpdatedAt = DateTime.UtcNow;
-            return Result.Success();
-        }
+        public bool IsLowStock() => QuantityInStock <= ReorderLevel;
     }
 }

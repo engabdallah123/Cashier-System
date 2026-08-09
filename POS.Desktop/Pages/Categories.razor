@@ -1,0 +1,36 @@
+@page "/categories"
+@using Microsoft.AspNetCore.Authorization
+@using global::POS.Desktop.Services.Api
+@attribute [Authorize]
+@inject PosApiClient ApiClient
+
+<div>
+    <h2 style="font-weight: 700; margin-bottom: 1.5rem;">Categories Management</h2>
+
+    <table class="data-table" style="max-width: 600px;">
+        <thead>
+            <tr>
+                <th>Category Name (Arabic)</th>
+                <th>Category Name (English)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var cat in categories)
+            {
+                <tr>
+                    <td style="font-weight: 600;">@cat.NameAr</td>
+                    <td>@cat.NameEn</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    private List<CategoryDto> categories = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        categories = await ApiClient.GetCategoriesAsync();
+    }
+}

@@ -1,0 +1,44 @@
+@page "/expenses"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize]
+@inject HttpClient Http
+
+<div>
+    <h2 style="font-weight: 700; margin-bottom: 1.5rem;">Store Expenses</h2>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Category</th>
+                <th>Amount</th>
+                <th>Expense Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var exp in expenses)
+            {
+                <tr>
+                    <td style="font-weight: 600;">@exp.Title</td>
+                    <td>@exp.Category</td>
+                    <td style="color: var(--accent-red); font-weight: 700;">@exp.Amount.ToString("N2") EGP</td>
+                    <td>@exp.ExpenseDate.ToString("yyyy-MM-dd")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    public record ExpenseDto(Guid Id, string Title, string Category, decimal Amount, DateTime ExpenseDate);
+    private List<ExpenseDto> expenses = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            expenses = await Http.GetFromJsonAsync<List<ExpenseDto>>("api/expenses") ?? new();
+        }
+        catch { }
+    }
+}

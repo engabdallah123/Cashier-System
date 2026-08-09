@@ -1,4 +1,3 @@
-using Inventory.Application.Catalog.Products.Commands.AddProductBarcode;
 using Inventory.Application.Catalog.Products.Commands.CreateProduct;
 using Inventory.Application.Catalog.Products.Commands.DeleteProduct;
 using Inventory.Application.Catalog.Products.Commands.UpdateProduct;
@@ -35,7 +34,7 @@ namespace POS.WebAPI.Controllers.Inventory
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProductCommand command, CancellationToken ct)
         {
             if (id != command.Id)
-                return BadRequest("ID in URL does not match request body.");
+                return BadRequest("Product ID mismatch.");
 
             var result = await _sender.Send(command, ct);
             if (result.IsFailure)
@@ -52,19 +51,6 @@ namespace POS.WebAPI.Controllers.Inventory
                 return BadRequest(result.Error);
 
             return NoContent();
-        }
-
-        [HttpPost("{id:guid}/barcodes")]
-        public async Task<IActionResult> AddBarcode(Guid id, [FromBody] AddProductBarcodeCommand command, CancellationToken ct)
-        {
-            if (id != command.ProductId)
-                return BadRequest("ProductId in URL does not match request body.");
-
-            var result = await _sender.Send(command, ct);
-            if (result.IsFailure)
-                return BadRequest(result.Error);
-
-            return Ok(result.Value);
         }
 
         [HttpGet("{id:guid}")]

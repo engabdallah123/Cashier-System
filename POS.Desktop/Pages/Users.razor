@@ -1,0 +1,48 @@
+@page "/users"
+@using Microsoft.AspNetCore.Authorization
+@attribute [Authorize(Roles = "Admin")]
+@inject HttpClient Http
+
+<div>
+    <h2 style="font-weight: 700; margin-bottom: 1.5rem;">User & Employee Accounts</h2>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Full Name</th>
+                <th>Username / Email</th>
+                <th>Phone</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var u in users)
+            {
+                <tr>
+                    <td style="font-weight: 600;">@u.FullName</td>
+                    <td>@u.Email</td>
+                    <td>@u.Phone</td>
+                    <td>
+                        <span class="badge @(u.IsActive ? "badge-green" : "badge-red")">
+                            @(u.IsActive ? "Active" : "Inactive")
+                        </span>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    public record UserDto(string Id, string FullName, string Email, string Phone, bool IsActive);
+    private List<UserDto> users = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            users = await Http.GetFromJsonAsync<List<UserDto>>("api/users") ?? new();
+        }
+        catch { }
+    }
+}

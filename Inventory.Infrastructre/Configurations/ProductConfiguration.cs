@@ -13,50 +13,53 @@ internal sealed class ProductConfiguration : IEntityTypeConfiguration<Product>
 
         builder.HasKey(p => p.Id);
 
-        builder.Property(p => p.Name)
+        builder.Property(p => p.Barcode)
+            .IsRequired()
+            .HasMaxLength(50);
+
+        builder.HasIndex(p => p.Barcode).IsUnique();
+
+        builder.Property(p => p.NameAr)
             .IsRequired()
             .HasMaxLength(200);
 
-        // Value Object 1: Sku (Owned)
-        builder.OwnsOne(p => p.Sku, skuBuilder =>
-        {
-            skuBuilder.Property(s => s.Value)
-                .HasColumnName("Sku")
-                .IsRequired()
-                .HasMaxLength(50);
+        builder.Property(p => p.NameEn)
+            .IsRequired()
+            .HasMaxLength(200);
 
-            skuBuilder.HasIndex(s => s.Value).IsUnique();
-        });
+        builder.Property(p => p.Description)
+            .HasMaxLength(1000);
 
-        // Value Object 2: Money (Owned)
-        builder.OwnsOne(p => p.Price, priceBuilder =>
-        {
-            priceBuilder.Property(m => m.Amount)
-                .HasColumnName("Price")
-                .HasPrecision(18, 2)
-                .IsRequired();
-
-            priceBuilder.Property(m => m.Currency)
-                .HasColumnName("Currency")
-                .HasMaxLength(5)
-                .IsRequired();
-        });
-
-        builder.Property(p => p.QuantityOnHand)
+        builder.Property(p => p.PurchasePrice)
+            .HasPrecision(18, 2)
             .IsRequired();
 
-        builder.Property(p => p.LowStockThreshold)
+        builder.Property(p => p.SellingPrice)
+            .HasPrecision(18, 2)
             .IsRequired();
 
-        builder.Property(p => p.IsActive)
+        builder.Property(p => p.WholesalePrice)
+            .HasPrecision(18, 2);
+
+        builder.Property(p => p.QuantityInStock)
+            .HasPrecision(18, 3)
             .IsRequired();
 
-        builder.Property(p => p.CreatedAt)
-            .IsRequired();
+        builder.Property(p => p.ReorderLevel)
+            .HasPrecision(18, 3);
+
+        builder.Property(p => p.MaxStockLevel)
+            .HasPrecision(18, 3);
+
+        builder.Property(p => p.TaxRate)
+            .HasPrecision(5, 2);
+
+        builder.Property(p => p.ImageUrl)
+            .HasMaxLength(500);
 
         builder.HasIndex(p => p.CategoryId);
-        builder.HasIndex(p => p.BrandId);
         builder.HasIndex(p => p.UnitId);
+        builder.HasIndex(p => p.SupplierId);
         builder.HasIndex(p => p.IsActive);
     }
 }

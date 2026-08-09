@@ -16,13 +16,13 @@ namespace Inventory.Application.Catalog.Units.Commands.UpdateUnit
 
         public async Task<Result> Handle(UpdateUnitCommand request, CancellationToken cancellationToken)
         {
-            var unit = await _unitOfWork.UnitRepository.FindAsync(u => u.Id == request.Id);
+            var unit = await _unitOfWork.UnitRepository.GetByIdAsync(request.Id);
             if (unit is null)
                 return Result.Failure(UnitErrors.NotFound(request.Id));
 
-            var updateRes = unit.UpdateInfo(request.Name, request.Abbreviation);
-            if (updateRes.IsFailure)
-                return updateRes;
+            var updateResult = unit.Update(request.NameAr, request.NameEn, request.Symbol);
+            if (updateResult.IsFailure)
+                return updateResult;
 
             _unitOfWork.UnitRepository.Update(unit);
             await _unitOfWork.SaveChangesAsync(cancellationToken);

@@ -1,0 +1,95 @@
+@page "/shifts"
+@using Microsoft.AspNetCore.Authorization
+@using global::POS.Desktop.Services.Api
+@using global::POS.Desktop.Services.Auth
+@using global::POS.Desktop.Services.State
+@attribute [Authorize]
+@inject PosApiClient ApiClient
+@inject ShiftStateContainer ShiftState
+@inject CustomAuthStateProvider AuthState
+
+<div style="max-width: 800px; margin: 0 auto;">
+    <h2 style="font-weight: 700; margin-bottom: 1.5rem;">Shift Management</h2>
+
+    @if (!ShiftState.IsShiftOpen)
+    {
+        <div class="modal-card" style="width: 100%; margin-bottom: 2rem;">
+            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; color: var(--accent-green);">
+                <i class="fa-solid fa-play-circle"></i> Open New Shift
+            </h3>
+
+            <div style="margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary);">Starting Cash in Drawer (EGP)</label>
+                <input type="number" @bind="startingCash" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white; margin-top: 0.3rem;" />
+            </div>
+
+            <button class="btn btn-success" style="width: 100%; padding: 0.8rem;" @onclick="OpenShift">
+                <i class="fa-solid fa-cash-register"></i> Open Shift
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="modal-card" style="width: 100%; margin-bottom: 2rem; border-color: var(--accent-green);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--accent-green);">
+                    <i class="fa-solid fa-circle-check"></i> Shift Currently Active
+                </h3>
+                <span class="badge badge-green">Shift ID: #@ShiftState.ShiftId.ToString()[..8]</span>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                <div style="background: var(--bg-primary); padding: 1rem; border-radius: 0.5rem;">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Opened At</div>
+                    <div style="font-size: 1rem; font-weight: 600;">@ShiftState.StartTime.ToString("yyyy-MM-dd HH:mm")</div>
+                </div>
+                <div style="background: var(--bg-primary); padding: 1rem; border-radius: 0.5rem;">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Initial Cash</div>
+                    <div style="font-size: 1rem; font-weight: 600; color: var(--accent-green);">@ShiftState.InitialCash.ToString("N2") EGP</div>
+                </div>
+            </div>
+
+            <h4 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.8rem;">Close Shift & Cash Drawer Count</h4>
+            
+            <div style="margin-bottom: 1rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary);">Actual Cash in Drawer (EGP)</label>
+                <input type="number" @bind="actualCashInDrawer" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;" />
+            </div>
+
+            <div style="margin-bottom: 1.2rem;">
+                <label style="font-size: 0.85rem; color: var(--text-secondary);">Closing Notes</label>
+                <textarea @bind="closingNotes" rows="2" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;"></textarea>
+            </div>
+
+            <button class="btn btn-danger" style="width: 100%; padding: 0.8rem;" @onclick="CloseShift">
+                <i class="fa-solid fa-lock"></i> Close Shift
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    private decimal startingCash = 500;
+    private decimal actualCashInDrawer = 0;
+    private string closingNotes = string.Empty;
+
+    private async Task OpenShift()
+    {
+        var cmd = new OpenShiftCommand(AuthState.UserId, startingCash);
+        var id = await ApiClient.OpenShiftAsync(cmd);
+        if (id.HasValue)
+        {
+            ShiftState.SetActiveShift(id.Value, DateTime.Now, startingCash);
+        }
+    }
+
+    private async Task CloseShift()
+    {
+        var cmd = new CloseShiftCommand(ShiftState.ShiftId, actualCashInDrawer, closingNotes);
+        var success = await ApiClient.CloseShiftAsync(cmd);
+        if (success)
+        {
+            ShiftState.ClearShift();
+        }
+    }
+}

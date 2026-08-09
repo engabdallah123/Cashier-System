@@ -1,0 +1,47 @@
+@inherits LayoutComponentBase
+@inject CustomAuthStateProvider AuthState
+@inject ShiftStateContainer ShiftState
+@inject NavigationManager Nav
+
+<div class="app-container">
+    <NavMenu />
+
+    <div class="main-content">
+        <header class="top-bar">
+            <div class="d-flex align-items-center gap-3">
+                <span class="badge @(ShiftState.IsShiftOpen ? "badge-green" : "badge-red")">
+                    <i class="fa-solid fa-circle me-1"></i>
+                    @(ShiftState.IsShiftOpen ? $"Shift Open (#{ShiftState.ShiftId.ToString()[..6]})" : "Shift Closed")
+                </span>
+            </div>
+
+            <div class="d-flex align-items-center gap-3">
+                <div class="text-end">
+                    <div style="font-weight: 600; font-size: 0.9rem;">@(AuthState.UserFullName ?? "Cashier User")</div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">@(AuthState.UserRole ?? "Cashier")</div>
+                </div>
+
+                <button class="btn btn-danger" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;" @onclick="Logout">
+                    <i class="fa-solid fa-right-from-bracket"></i> Logout
+                </button>
+            </div>
+        </header>
+
+        <main class="page-body">
+            @Body
+        </main>
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        ShiftState.OnShiftStateChanged += StateHasChanged;
+    }
+
+    private void Logout()
+    {
+        AuthState.MarkUserAsLoggedOut();
+        Nav.NavigateTo("/");
+    }
+}

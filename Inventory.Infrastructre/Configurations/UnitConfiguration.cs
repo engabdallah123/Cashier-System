@@ -5,28 +5,24 @@ using POS.Shared.Infrastructure.Database;
 
 namespace Inventory.Infrastructre.Configurations;
 
-internal sealed class UnitConfiguration : IEntityTypeConfiguration<UnitMeasure>
+internal sealed class UnitConfiguration : IEntityTypeConfiguration<Unit>
 {
-    public void Configure(EntityTypeBuilder<UnitMeasure> builder)
+    public void Configure(EntityTypeBuilder<Unit> builder)
     {
         builder.ToTable("Units", Schemas.Inventory);
 
         builder.HasKey(u => u.Id);
 
-        builder.Property(u => u.Name)
+        builder.Property(u => u.NameAr)
             .IsRequired()
             .HasMaxLength(100);
 
-        builder.Property(u => u.Abbreviation)
+        builder.Property(u => u.NameEn)
+            .IsRequired()
+            .HasMaxLength(100);
+
+        builder.Property(u => u.Symbol)
             .IsRequired()
             .HasMaxLength(20);
-
-        builder.Property(u => u.IsActive)
-            .IsRequired();
-
-        builder.Property(u => u.CreatedAt)
-            .IsRequired();
-
-        builder.HasIndex(u => u.Name).IsUnique();
     }
 }
