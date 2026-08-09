@@ -25,7 +25,7 @@ namespace POS.WebAPI
 {
     public class Program
     {
-        public static void Main(string[] args)
+        public static async Task Main(string[] args)
         {
             // Set QuestPDF License to Community
             QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
@@ -93,6 +93,9 @@ namespace POS.WebAPI
             });
 
             var app = builder.Build();
+
+            // Seed Identity Data (Roles & Default Accounts: admin/Admin123!, cashier/Cashier123!)
+            await IdentityDataSeeder.SeedAsync(app.Services);
 
             // Enable Swagger UI
             app.UseSwagger();
