@@ -1,5 +1,6 @@
 using Audit.Application;
 using Audit.Infrastructre;
+using Audit.Infrastructre.Database;
 using Dashboard.Application;
 using Expenses.Application;
 using Expenses.Infrastructre;
@@ -77,6 +78,7 @@ namespace POS.WebAPI
             builder.Services.AddAuditApplication();
             builder.Services.AddAuditInfrastructure(builder.Configuration);
 
+            builder.Services.AddHttpContextAccessor();
             builder.Services.AddControllers();
 
             // Swagger / OpenAPI Configuration
@@ -99,6 +101,7 @@ namespace POS.WebAPI
             // Seed Initial Data
             await IdentityDataSeeder.SeedAsync(app.Services);
             await SettingsDataSeeder.SeedAsync(app.Services);
+            await AuditDataSeeder.SeedAsync(app.Services);
 
             // Enable Swagger UI
             app.UseSwagger();

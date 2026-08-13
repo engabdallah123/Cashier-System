@@ -36,5 +36,14 @@ namespace Purchases.Domain.Purchases
 
         public static readonly Error PurchaseHasNoItems =
             new("Purchase.PurchaseHasNoItems", "لا يمكن استلام فاتورة شراء بدون عناصر.");
+
+        public static readonly Error PaymentAmountInvalid =
+            new("Purchase.PaymentAmountInvalid", "مبلغ السداد يجب أن يكون أكبر من صفر.");
+
+        public static readonly Error PaymentExceedsRemaining =
+            new("Purchase.PaymentExceedsRemaining", "مبلغ السداد لا يمكن أن يتجاوز المبلغ المتبقي للفاتورة.");
+
+        public static readonly Error PurchaseAlreadyFullyPaid =
+            new("Purchase.PurchaseAlreadyFullyPaid", "الفاتورة مدفوعة بالكامل بالفعل.");
     }
 }

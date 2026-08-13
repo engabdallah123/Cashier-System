@@ -9,5 +9,8 @@ namespace Expenses.Application.Expenses.Queries
         Guid CreatedByUserId,
         string? CreatedByName,
         string? Notes,
-        DateTime CreatedAt);
+        DateTime CreatedAt)
+    {
+        public string Category => Description ?? string.Empty;
+    }
 }

@@ -108,6 +108,22 @@ namespace Purchases.Domain.Purchases.Entities
             return Result.Success();
         }
 
+        public Result AddPayment(decimal amount)
+        {
+            if (amount <= 0)
+                return Result.Failure(PurchaseErrors.PaymentAmountInvalid);
+
+            if (RemainingAmount <= 0)
+                return Result.Failure(PurchaseErrors.PurchaseAlreadyFullyPaid);
+
+            if (amount > RemainingAmount)
+                return Result.Failure(PurchaseErrors.PaymentExceedsRemaining);
+
+            PaidAmount += amount;
+            RemainingAmount = TotalAmount - PaidAmount;
+            return Result.Success();
+        }
+
         private void CalculateTotals()
         {
             SubTotal = _items.Sum(i => i.Total);

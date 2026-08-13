@@ -4,6 +4,8 @@ using Purchases.Application.Purchases.Commands.CreatePurchase;
 using Purchases.Application.Purchases.Commands.ReceivePurchase;
 using Purchases.Application.Purchases.Queries.GetPurchases;
 
+using Purchases.Application.Purchases.Commands.PayPurchaseInvoice;
+
 namespace POS.WebAPI.Controllers.Purchases
 {
     [ApiController]
@@ -31,6 +33,16 @@ namespace POS.WebAPI.Controllers.Purchases
         public async Task<IActionResult> Receive(Guid id, [FromBody] Guid userId, CancellationToken ct)
         {
             var result = await _sender.Send(new ReceivePurchaseCommand(id, userId), ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return NoContent();
+        }
+
+        [HttpPost("{id:guid}/pay")]
+        public async Task<IActionResult> Pay(Guid id, [FromBody] decimal amount, CancellationToken ct)
+        {
+            var result = await _sender.Send(new PayPurchaseInvoiceCommand(id, amount), ct);
             if (result.IsFailure)
                 return BadRequest(result.Error);
 

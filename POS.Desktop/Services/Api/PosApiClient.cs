@@ -469,11 +469,16 @@ namespace POS.Desktop.Services.Api
         }
 
         // Expenses
-        public async Task<List<ExpenseDto>> GetExpensesListAsync()
+        public async Task<List<ExpenseDto>> GetExpensesListAsync(DateTime? fromDate = null, DateTime? toDate = null)
         {
             try
             {
-                return await _http.GetFromJsonAsync<List<ExpenseDto>>("api/expenses?pageSize=1000") ?? new();
+                var queryParams = new List<string> { "pageSize=1000" };
+                if (fromDate.HasValue) queryParams.Add($"fromDate={fromDate.Value:yyyy-MM-ddTHH:mm:ss}");
+                if (toDate.HasValue) queryParams.Add($"toDate={toDate.Value:yyyy-MM-ddTHH:mm:ss}");
+
+                var url = "api/expenses?" + string.Join("&", queryParams);
+                return await _http.GetFromJsonAsync<List<ExpenseDto>>(url) ?? new();
             }
             catch
             {
@@ -517,6 +522,21 @@ namespace POS.Desktop.Services.Api
                 if (res.IsSuccessStatusCode) return (true, null);
                 var err = await res.Content.ReadAsStringAsync();
                 return (false, ExtractErrorMessage(err, "فشل تسجيل فاتورة الشراء."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> PayPurchaseInvoiceAsync(Guid purchaseId, decimal amount)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync($"api/purchases/{purchaseId}/pay", amount);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل سداد المتبقي للفاتورة."));
             }
             catch (Exception ex)
             {

@@ -19,6 +19,16 @@ namespace POS.WebAPI.Controllers.Expenses
         [HttpPost]
         public async Task<IActionResult> Create([FromBody] CreateExpenseCommand command, CancellationToken ct)
         {
+            if (command.CreatedByUserId == Guid.Empty)
+            {
+                var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                    ?? User.FindFirst("sub")?.Value;
+                if (Guid.TryParse(userIdClaim, out var userId))
+                {
+                    command = command with { CreatedByUserId = userId };
+                }
+            }
+
             var result = await _sender.Send(command, ct);
             if (result.IsFailure)
                 return BadRequest(result.Error);

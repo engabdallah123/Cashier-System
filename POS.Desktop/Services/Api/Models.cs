@@ -191,8 +191,13 @@ namespace POS.Desktop.Services.Api
         public string Name => !string.IsNullOrWhiteSpace(ProductName) ? ProductName : "منتج بدون اسم";
     }
 
-    public record ExpenseDto(Guid Id, string Title, string Category, decimal Amount, DateTime ExpenseDate, string? Notes);
-    public record CreateExpenseRequest(string Title, string Category, decimal Amount, string? Notes = null);
+    public record ExpenseDto(Guid Id, string Title, string? Description, string? Category, decimal Amount, DateTime ExpenseDate, string? Notes)
+    {
+        public string DisplayCategory => !string.IsNullOrWhiteSpace(Category)
+            ? Category
+            : (!string.IsNullOrWhiteSpace(Description) ? Description : "عام");
+    }
+    public record CreateExpenseRequest(string Title, decimal Amount, Guid CreatedByUserId, string? Description = null, DateTime? ExpenseDate = null, string? Notes = null);
 
     public record CreateSupplierRequest(string Name, string Phone, string? Email = null, string? Address = null, string? ContactPerson = null);
 
