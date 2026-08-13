@@ -23,7 +23,7 @@ namespace Inventory.Application.Catalog.Products.Queries.GetProductByBarcode
                 SELECT 
                     p.Id, p.Barcode, p.NameAr, p.NameEn, p.Description,
                     p.CategoryId, c.NameAr AS CategoryName,
-                    p.UnitId, u.NameAr AS UnitName,
+                    p.UnitId, u.Symbol AS UnitSymbol,
                     p.SupplierId, sup.Name AS SupplierName,
                     p.PurchasePrice, p.SellingPrice, p.WholesalePrice,
                     p.QuantityInStock, p.ReorderLevel, p.MaxStockLevel,

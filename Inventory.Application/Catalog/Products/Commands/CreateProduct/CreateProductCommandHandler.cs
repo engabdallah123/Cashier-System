@@ -36,6 +36,12 @@ namespace Inventory.Application.Catalog.Products.Commands.CreateProduct
                 return Result<Guid>.Failure(productResult.Error);
 
             var product = productResult.Value!;
+
+            if (request.InitialStock > 0)
+            {
+                product.AdjustStock(request.InitialStock, allowNegativeStock: true);
+            }
+
             await _unitOfWork.ProductRepository.AddAsync(product, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 

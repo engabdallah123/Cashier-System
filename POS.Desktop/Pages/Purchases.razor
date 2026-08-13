@@ -1,41 +1,638 @@
 @page "/purchases"
 @using Microsoft.AspNetCore.Authorization
 @using global::POS.Desktop.Services.Api
+@using global::POS.Desktop.Services.Auth
 @attribute [Authorize]
 @inject PosApiClient ApiClient
+@inject CustomAuthStateProvider AuthState
 
 <div>
-    <h2 style="font-weight: 700; margin-bottom: 1.5rem;">Purchases & Suppliers</h2>
+    <div class="page-header">
+        <div>
+            <h2 class="page-title">إدارة المشتريات والموردين</h2>
+            <p class="page-subtitle">تسجيل فواتير توريد البضائع وإدارة بيانات الموردين</p>
+        </div>
+        <div style="display: flex; gap: 0.75rem;">
+            <button class="btn btn-secondary" @onclick="OpenAddSupplierModal">
+                <i class="fa-solid fa-user-plus me-1"></i> إضافة مورد جديد
+            </button>
+            <button class="btn btn-primary" @onclick="OpenAddPurchaseModal">
+                <i class="fa-solid fa-cart-plus me-1"></i> تسجيل فاتورة شراء
+            </button>
+        </div>
+    </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
-        <div class="modal-card" style="width: 100%;">
-            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem;">Suppliers List</h3>
+    <!-- Navigation Tabs & Search -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; flex-wrap: wrap; gap: 1rem;">
+        <div style="display: flex; gap: 0.5rem;">
+            <button class="btn @(activeTab == "purchases" ? "btn-primary" : "btn-secondary")" @onclick='() => activeTab = "purchases"'>
+                <i class="fa-solid fa-truck-ramp-box me-1"></i> فواتير المشتريات (@filteredPurchases.Count)
+            </button>
+            <button class="btn @(activeTab == "suppliers" ? "btn-primary" : "btn-secondary")" @onclick='() => activeTab = "suppliers"'>
+                <i class="fa-solid fa-users me-1"></i> قائمة الموردين (@filteredSuppliers.Count)
+            </button>
+        </div>
+        @if (activeTab == "purchases")
+        {
+            <div class="search-box" style="max-width: 320px;">
+                <i class="fa-solid fa-search"></i>
+                <input @bind="searchQueryPurchases" @bind:event="oninput" @onkeyup="FilterPurchases" placeholder="بحث برقم الفاتورة أو المورد..." />
+            </div>
+        }
+        else
+        {
+            <div class="search-box" style="max-width: 320px;">
+                <i class="fa-solid fa-search"></i>
+                <input @bind="searchQuerySuppliers" @bind:event="oninput" @onkeyup="FilterSuppliers" placeholder="بحث باسم المورد أو الهاتف..." />
+            </div>
+        }
+    </div>
+
+    @if (activeTab == "purchases")
+    {
+        <div class="table-container">
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Supplier Name</th>
-                        <th>Phone</th>
+                        <th>رقم الفاتورة</th>
+                        <th>تاريخ الشراء</th>
+                        <th>المورد</th>
+                        <th>المبلغ الإجمالي</th>
+                        <th>المبلغ المدفوع</th>
+                        <th>المتبقي</th>
+                        <th>الحالة</th>
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var sup in suppliers)
+                    @if (isLoading)
                     {
                         <tr>
-                            <td style="font-weight: 600;">@sup.Name</td>
-                            <td>@sup.Phone</td>
+                            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+                                <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--accent-blue);"></i>
+                                <p style="margin-top: 0.5rem;">جاري تحميل المشتريات...</p>
+                            </td>
                         </tr>
+                    }
+                    else if (!filteredPurchases.Any())
+                    {
+                        <tr>
+                            <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+                                <i class="fa-solid fa-truck-ramp-box" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
+                                لا توجد فواتير مشتريات مسجلة حالياً.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var pur in PagedPurchases)
+                        {
+                            <tr>
+                                <td><code style="background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 0.3rem;">@pur.InvoiceNumber</code></td>
+                                <td>@pur.PurchaseDate.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td style="font-weight: 600;">@pur.SupplierName</td>
+                                <td style="color: var(--accent-amber); font-weight: 700;">@pur.TotalAmount.ToString("N2") ج.م</td>
+                                <td style="color: var(--accent-emerald);">@pur.PaidAmount.ToString("N2") ج.م</td>
+                                <td style="color: var(--accent-red);">@pur.RemainingAmount.ToString("N2") ج.م</td>
+                                <td>
+                                    <span class="badge @(pur.Status == "Received" ? "badge-green" : "badge-indigo")">
+                                        @(pur.Status == "Received" ? "تم الاستلام" : pur.Status)
+                                    </span>
+                                </td>
+                            </tr>
+                        }
                     }
                 </tbody>
             </table>
         </div>
-    </div>
+        <Pagination CurrentPage="@purchasesCurrentPage" TotalItems="@filteredPurchases.Count" PageSize="@pageSize" OnPageChanged="@(p => purchasesCurrentPage = p)" OnPageSizeChanged="@(s => { pageSize = s; purchasesCurrentPage = 1; EnsureValidPurchasesPage(); })" />
+    }
+    else
+    {
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>اسم المورد</th>
+                        <th>رقم الهاتف</th>
+                        <th>البريد الإلكتروني</th>
+                        <th>العنوان</th>
+                        <th>المسؤول</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (isLoading)
+                    {
+                        <tr>
+                            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+                                <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--accent-blue);"></i>
+                                <p style="margin-top: 0.5rem;">جاري تحميل الموردين...</p>
+                            </td>
+                        </tr>
+                    }
+                    else if (!filteredSuppliers.Any())
+                    {
+                        <tr>
+                            <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+                                <i class="fa-solid fa-users" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
+                                لا يوجد موردين مسجلين حالياً.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var sup in PagedSuppliers)
+                        {
+                            <tr>
+                                <td style="font-weight: 600;">@sup.Name</td>
+                                <td><i class="fa-solid fa-phone me-1" style="font-size: 0.75rem; color: var(--accent-blue);"></i> @sup.Phone</td>
+                                <td>@(string.IsNullOrWhiteSpace(sup.Email) ? "-" : sup.Email)</td>
+                                <td>@(string.IsNullOrWhiteSpace(sup.Address) ? "-" : sup.Address)</td>
+                                <td>@(string.IsNullOrWhiteSpace(sup.ContactPerson) ? "-" : sup.ContactPerson)</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+        <Pagination CurrentPage="@suppliersCurrentPage" TotalItems="@filteredSuppliers.Count" PageSize="@pageSize" OnPageChanged="@(p => suppliersCurrentPage = p)" OnPageSizeChanged="@(s => { pageSize = s; suppliersCurrentPage = 1; EnsureValidSuppliersPage(); })" />
+    }
 </div>
 
+
+<!-- Add Supplier Modal -->
+@if (showAddSupplierModal)
+{
+    <div class="modal-overlay" @onclick="CloseModals">
+        <div class="modal-card" style="width: 520px;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fa-solid fa-user-plus me-2" style="color: var(--accent-indigo);"></i>
+                    إضافة مورد جديد
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseModals">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @errorMessage
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label>اسم المورد / الشركة <span style="color: var(--accent-red);">*</span></label>
+                    <input class="form-control" @bind="newSupplier.Name" placeholder="مثال: شركة الجهينة للأغذية" />
+                </div>
+
+                <div class="form-group">
+                    <label>رقم الهاتف <span style="color: var(--accent-red);">*</span></label>
+                    <input class="form-control" @bind="newSupplier.Phone" placeholder="مثال: 01012345678" />
+                </div>
+
+                <div class="form-group">
+                    <label>البريد الإلكتروني</label>
+                    <input class="form-control" @bind="newSupplier.Email" placeholder="supplier@company.com" />
+                </div>
+
+                <div class="form-group">
+                    <label>الشخص المسؤول للتواصل</label>
+                    <input class="form-control" @bind="newSupplier.ContactPerson" placeholder="اسم مندوب الشركة" />
+                </div>
+
+                <div class="form-group">
+                    <label>العنوان</label>
+                    <input class="form-control" @bind="newSupplier.Address" placeholder="عنوان المقر الرئيسي" />
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModals" disabled="@isSaving">إلغاء</button>
+                <button class="btn btn-primary" @onclick="SaveSupplier" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الحفظ...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-check me-1"></i> <span>حفظ المورد</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Add Purchase Invoice Modal -->
+@if (showAddPurchaseModal)
+{
+    <div class="modal-overlay" @onclick="CloseModals">
+        <div class="modal-card" style="width: 700px;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fa-solid fa-cart-plus me-2" style="color: var(--accent-indigo);"></i>
+                    تسجيل فاتورة شراء بضائع
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseModals">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @errorMessage
+                    </div>
+                }
+
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>المورد <span style="color: var(--accent-red);">*</span></label>
+                        <select class="form-select" @bind="selectedSupplierIdString">
+                            <option value="">-- اختر المورد --</option>
+                            @foreach (var s in suppliers)
+                            {
+                                <option value="@s.Id.ToString()">@s.Name</option>
+                            }
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>رقم فاتورة الشراء <span style="color: var(--accent-red);">*</span></label>
+                        <input class="form-control" @bind="purchaseInvoiceNumber" placeholder="مثال: PUR-10025" />
+                    </div>
+                </div>
+
+                <h4 style="font-size: 0.95rem; font-weight: 700; margin: 1rem 0 0.5rem 0;">أصناف الفاتورة</h4>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 0.75rem;">
+                    <div class="search-box" style="flex: 1;">
+                        <i class="fa-solid fa-barcode"></i>
+                        <input @bind="scannedPurchaseBarcode" 
+                               @bind:event="oninput" 
+                               @onkeyup="HandlePurchaseBarcodeKeyUp" 
+                               placeholder="مسح أو إدخال الباركود هنا... [Enter]" 
+                               class="form-control" />
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                    <select class="form-select" style="flex: 2;" value="@selectedProductIdString" @onchange="OnProductSelected">
+                        <option value="">-- اختر المنتج لإضافته --</option>
+                        @foreach (var p in availableProducts)
+                        {
+                            <option value="@p.Id.ToString()">@p.NameAr (@(p.PurchasePrice > 0 ? p.PurchasePrice : p.SellingPrice) ج.م)</option>
+                        }
+                    </select>
+                    <input type="number" class="form-control" style="width: 100px;" @bind="addItemQty" placeholder="الكمية" />
+                    <input type="number" step="0.01" class="form-control" style="width: 120px;" @bind="addItemCost" placeholder="سعر الشراء" />
+                    <button class="btn btn-secondary" type="button" @onclick="AddPurchaseLineItem">
+                        <i class="fa-solid fa-plus"></i> إضافة
+                    </button>
+                </div>
+
+                <div class="table-container" style="margin-bottom: 1rem;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>المنتج</th>
+                                <th>الكمية</th>
+                                <th>سعر الشراء</th>
+                                <th>الإجمالي</th>
+                                <th style="width: 50px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!purchaseItems.Any())
+                            {
+                                <tr>
+                                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">
+                                        لم يتم إضافة أصناف حتى الآن.
+                                    </td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var item in purchaseItems)
+                                {
+                                    var prod = availableProducts.FirstOrDefault(p => p.Id == item.ProductId);
+                                    <tr>
+                                        <td style="font-weight: 600;">@(prod?.NameAr ?? "منتج")</td>
+                                        <td>@item.Quantity</td>
+                                        <td>@item.UnitCostPrice.ToString("N2") ج.م</td>
+                                        <td style="color: var(--accent-emerald); font-weight: 700;">@((item.Quantity * item.UnitCostPrice).ToString("N2")) ج.م</td>
+                                        <td>
+                                            <button class="btn btn-danger" style="padding: 0.2rem 0.4rem; font-size: 0.75rem;" @onclick="() => purchaseItems.Remove(item)">
+                                                <i class="fa-solid fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>المبلغ المدفوع (جنيه)</label>
+                        <input type="number" step="0.01" class="form-control" @bind="purchasePaidAmount" placeholder="0.00" />
+                    </div>
+
+                    <div style="background: var(--bg-card); padding: 0.75rem 1rem; border-radius: 0.5rem; border: 1px solid var(--border-color-light); display: flex; flex-direction: column; justify-content: center;">
+                        <span style="font-size: 0.85rem; color: var(--text-secondary);">إجمالي الفاتورة:</span>
+                        <strong style="font-size: 1.2rem; color: var(--accent-amber);">@purchaseItems.Sum(i => i.Quantity * i.UnitCostPrice).ToString("N2") ج.م</strong>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModals" disabled="@isSaving">إلغاء</button>
+                <button class="btn btn-primary" @onclick="SavePurchase" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الحفظ...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-check me-1"></i> <span>حفظ وتسجيل الفاتورة</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
+    private string activeTab = "purchases";
+    private List<PurchaseDto> purchases = new();
+    private List<PurchaseDto> filteredPurchases = new();
     private List<SupplierDto> suppliers = new();
+    private List<SupplierDto> filteredSuppliers = new();
+    private List<ProductDto> availableProducts = new();
+    private bool isLoading = true;
+
+    private string searchQueryPurchases = string.Empty;
+    private string searchQuerySuppliers = string.Empty;
+
+    private int purchasesCurrentPage = 1;
+    private int suppliersCurrentPage = 1;
+    private int pageSize = 10;
+    private IEnumerable<PurchaseDto> PagedPurchases => filteredPurchases.Skip((purchasesCurrentPage - 1) * pageSize).Take(pageSize);
+    private IEnumerable<SupplierDto> PagedSuppliers => filteredSuppliers.Skip((suppliersCurrentPage - 1) * pageSize).Take(pageSize);
+
+
+    private bool showAddSupplierModal = false;
+    private bool showAddPurchaseModal = false;
+    private bool isSaving = false;
+    private string errorMessage = string.Empty;
+
+    // Supplier Form
+    private class CreateSupplierFormModel
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+        public string? Email { get; set; }
+        public string? ContactPerson { get; set; }
+        public string? Address { get; set; }
+    }
+
+    private CreateSupplierFormModel newSupplier = new();
+
+    // Purchase Form
+    private string selectedSupplierIdString = string.Empty;
+    private string purchaseInvoiceNumber = string.Empty;
+    private string selectedProductIdString = string.Empty;
+    private string scannedPurchaseBarcode = string.Empty;
+    private decimal addItemQty = 1;
+    private decimal addItemCost = 0;
+    private decimal purchasePaidAmount = 0;
+    private List<CreatePurchaseItemRequest> purchaseItems = new();
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        purchases = await ApiClient.GetPurchasesListAsync();
         suppliers = await ApiClient.GetSuppliersAsync();
+        availableProducts = await ApiClient.GetProductsAsync();
+        FilterPurchases();
+        FilterSuppliers();
+        isLoading = false;
+    }
+
+    private void FilterPurchases()
+    {
+        purchasesCurrentPage = 1;
+        if (string.IsNullOrWhiteSpace(searchQueryPurchases))
+        {
+            filteredPurchases = purchases.ToList();
+        }
+        else
+        {
+            filteredPurchases = purchases.Where(p =>
+                p.InvoiceNumber.Contains(searchQueryPurchases, StringComparison.OrdinalIgnoreCase) ||
+                (p.SupplierName != null && p.SupplierName.Contains(searchQueryPurchases, StringComparison.OrdinalIgnoreCase))).ToList();
+        }
+        EnsureValidPurchasesPage();
+    }
+
+    private void FilterSuppliers()
+    {
+        suppliersCurrentPage = 1;
+        if (string.IsNullOrWhiteSpace(searchQuerySuppliers))
+        {
+            filteredSuppliers = suppliers.ToList();
+        }
+        else
+        {
+            filteredSuppliers = suppliers.Where(s =>
+                s.Name.Contains(searchQuerySuppliers, StringComparison.OrdinalIgnoreCase) ||
+                (s.Phone != null && s.Phone.Contains(searchQuerySuppliers, StringComparison.OrdinalIgnoreCase)) ||
+                (s.Address != null && s.Address.Contains(searchQuerySuppliers, StringComparison.OrdinalIgnoreCase))).ToList();
+        }
+        EnsureValidSuppliersPage();
+    }
+
+    private void EnsureValidPurchasesPage()
+    {
+        int maxPage = Math.Max(1, (int)Math.Ceiling((double)filteredPurchases.Count / pageSize));
+        if (purchasesCurrentPage > maxPage) purchasesCurrentPage = maxPage;
+    }
+
+    private void EnsureValidSuppliersPage()
+    {
+        int maxPage = Math.Max(1, (int)Math.Ceiling((double)filteredSuppliers.Count / pageSize));
+        if (suppliersCurrentPage > maxPage) suppliersCurrentPage = maxPage;
+    }
+
+    private void OpenAddSupplierModal()
+    {
+        newSupplier = new CreateSupplierFormModel();
+        errorMessage = string.Empty;
+        showAddSupplierModal = true;
+    }
+
+    private void OpenAddPurchaseModal()
+    {
+        purchaseInvoiceNumber = $"PUR-{DateTime.Now:yyyyMMdd}-{Random.Shared.Next(100, 999)}";
+        selectedSupplierIdString = suppliers.FirstOrDefault()?.Id.ToString() ?? string.Empty;
+        selectedProductIdString = string.Empty;
+        scannedPurchaseBarcode = string.Empty;
+        purchaseItems.Clear();
+        purchasePaidAmount = 0;
+        addItemQty = 1;
+        addItemCost = 0;
+        errorMessage = string.Empty;
+        showAddPurchaseModal = true;
+    }
+
+    private void CloseModals()
+    {
+        showAddSupplierModal = false;
+        showAddPurchaseModal = false;
+    }
+
+    private void OnProductSelected(ChangeEventArgs e)
+    {
+        selectedProductIdString = e.Value?.ToString() ?? string.Empty;
+        if (Guid.TryParse(selectedProductIdString, out var pId))
+        {
+            var prod = availableProducts.FirstOrDefault(p => p.Id == pId);
+            if (prod != null)
+            {
+                addItemCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
+            }
+        }
+    }
+
+    private async Task HandlePurchaseBarcodeKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !string.IsNullOrWhiteSpace(scannedPurchaseBarcode))
+        {
+            var code = scannedPurchaseBarcode.Trim();
+            scannedPurchaseBarcode = string.Empty;
+
+            var prod = availableProducts.FirstOrDefault(p => string.Equals(p.Barcode, code, StringComparison.OrdinalIgnoreCase));
+            if (prod is null)
+            {
+                prod = await ApiClient.GetProductByBarcodeAsync(code);
+            }
+
+            if (prod is not null)
+            {
+                selectedProductIdString = prod.Id.ToString();
+                addItemCost = prod.PurchasePrice > 0 ? prod.PurchasePrice : prod.SellingPrice;
+                errorMessage = string.Empty;
+            }
+            else
+            {
+                errorMessage = $"المنتج بالباركود '{code}' غير موجود.";
+            }
+        }
+    }
+
+    private void AddPurchaseLineItem()
+    {
+        if (!Guid.TryParse(selectedProductIdString, out var pId) || pId == Guid.Empty)
+        {
+            errorMessage = "الرجاء اختيار المنتج أولاً.";
+            return;
+        }
+
+        if (addItemQty <= 0 || addItemCost <= 0)
+        {
+            errorMessage = "الرجاء إدخال كمية وسعر شراء صحيحين.";
+            return;
+        }
+
+        purchaseItems.Add(new CreatePurchaseItemRequest(pId, addItemQty, addItemCost));
+        addItemQty = 1;
+        addItemCost = 0;
+        selectedProductIdString = string.Empty;
+        errorMessage = string.Empty;
+    }
+
+    private async Task SaveSupplier()
+    {
+        if (string.IsNullOrWhiteSpace(newSupplier.Name))
+        {
+            errorMessage = "الرجاء إدخال اسم المورد.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newSupplier.Phone))
+        {
+            errorMessage = "الرجاء إدخال رقم هاتف المورد.";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = string.Empty;
+
+        var req = new CreateSupplierRequest(newSupplier.Name, newSupplier.Phone, newSupplier.Email, newSupplier.Address, newSupplier.ContactPerson);
+        var (success, error) = await ApiClient.CreateSupplierAsync(req);
+        isSaving = false;
+
+        if (success)
+        {
+            CloseModals();
+            activeTab = "suppliers";
+            searchQuerySuppliers = string.Empty;
+            await LoadData();
+        }
+        else
+        {
+            errorMessage = !string.IsNullOrEmpty(error) ? error : "فشل إضافة المورد.";
+        }
+    }
+
+    private async Task SavePurchase()
+    {
+        if (!Guid.TryParse(selectedSupplierIdString, out var supId) || supId == Guid.Empty)
+        {
+            errorMessage = "الرجاء اختيار المورد.";
+            return;
+        }
+
+        if (!purchaseItems.Any())
+        {
+            errorMessage = "الرجاء إضافة صنف واحد على الأقل في فاتورة الشراء.";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = string.Empty;
+
+        var userId = AuthState.UserId != Guid.Empty ? AuthState.UserId : Guid.Parse("00000000-0000-0000-0000-000000000001");
+        var req = new CreatePurchaseRequest(
+            InvoiceNumber: purchaseInvoiceNumber,
+            SupplierId: supId,
+            CreatedByUserId: userId,
+            Items: purchaseItems,
+            InternalNumber: null,
+            DiscountAmount: 0,
+            TaxAmount: 0,
+            PaidAmount: purchasePaidAmount,
+            PaymentMethod: 1, // Cash
+            Notes: "فاتورة مشتريات جديدة");
+
+        var (success, error) = await ApiClient.CreatePurchaseAsync(req);
+        isSaving = false;
+
+        if (success)
+        {
+            CloseModals();
+            await LoadData();
+        }
+        else
+        {
+            errorMessage = !string.IsNullOrEmpty(error) ? error : "فشل تسجيل فاتورة الشراء.";
+        }
     }
 }

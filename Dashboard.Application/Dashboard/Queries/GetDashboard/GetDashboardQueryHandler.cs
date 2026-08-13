@@ -2,6 +2,7 @@ using Dapper;
 using POS.Shared.Application.Database;
 using POS.Shared.Application.Messaging;
 using POS.Shared.Domain;
+using System.Data;
 
 namespace Dashboard.Application.Dashboard.Queries.GetDashboard
 {
@@ -18,8 +19,8 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
         {
             using var connection = _sqlConnectionFactory.CreateConnection();
 
-            var fromDate = request.FromDate ?? DateTime.UtcNow.Date;
-            var toDate = request.ToDate ?? DateTime.UtcNow;
+            var fromDate = request.FromDate ?? new DateTime(2000, 1, 1);
+            var toDate = request.ToDate ?? DateTime.UtcNow.AddDays(1);
 
             const string salesSql = """
                 SELECT 
@@ -68,6 +69,19 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
                 """;
             int lowStockCount = await connection.QuerySingleAsync<int>(lowStockSql);
 
+            const string lowStockListSql = """
+                SELECT TOP 10 
+                    Id AS ProductId,
+                    NameAr AS ProductName,
+                    Barcode,
+                    QuantityInStock,
+                    ReorderLevel
+                FROM [Inventory].[Products]
+                WHERE IsActive = 1 AND QuantityInStock <= ReorderLevel
+                ORDER BY QuantityInStock ASC
+                """;
+            var lowStockList = (await connection.QueryAsync<LowStockProductResponse>(lowStockListSql)).ToList();
+
             const string topProductsSql = """
                 SELECT TOP 5
                     i.ProductId,
@@ -99,7 +113,41 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
                 """;
             var cashierPerformances = (await connection.QueryAsync<CashierPerformanceResponse>(cashierSql, new { FromDate = fromDate, ToDate = toDate })).ToList();
 
+            const string paymentMethodsSql = """
+                SELECT 
+                    PaymentMethod,
+                    ISNULL(SUM(TotalAmount), 0) AS TotalAmount,
+                    COUNT(1) AS InvoiceCount
+                FROM [Sales].[Sales]
+                WHERE Status = 1 AND SaleDate >= @FromDate AND SaleDate <= @ToDate
+                GROUP BY PaymentMethod
+                """;
+            var rawPaymentMethods = (await connection.QueryAsync(paymentMethodsSql, new { FromDate = fromDate, ToDate = toDate })).ToList();
+            var paymentMethodsSummary = rawPaymentMethods.Select(p => {
+                string method = Convert.ToString(p.PaymentMethod) ?? "Cash";
+                decimal amount = Convert.ToDecimal(p.TotalAmount);
+                int count = Convert.ToInt32(p.InvoiceCount);
+                decimal pct = totalSales > 0 ? (amount / totalSales) * 100 : 0;
+                return new PaymentMethodSummaryResponse(method, amount, count, Math.Round(pct, 1));
+            }).ToList();
+
+            var now = DateTime.Now;
+            var todayStart = now.Date;
+            var todayEnd = todayStart.AddDays(1).AddTicks(-1);
+
+            var monthStart = new DateTime(now.Year, now.Month, 1);
+            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
+
+            var yearStart = new DateTime(now.Year, 1, 1);
+            var yearEnd = yearStart.AddYears(1).AddTicks(-1);
+
+            var todayMetrics = await GetPeriodMetricsAsync(connection, todayStart, todayEnd);
+            var monthMetrics = await GetPeriodMetricsAsync(connection, monthStart, monthEnd);
+            var yearMetrics = await GetPeriodMetricsAsync(connection, yearStart, yearEnd);
+
             decimal netProfit = (totalSales - totalSalesReturns) - (totalPurchases - totalPurchaseReturns) - totalExpenses;
+            decimal avgInvoiceValue = totalInvoices > 0 ? totalSales / totalInvoices : 0;
+            decimal profitMarginPct = totalSales > 0 ? (netProfit / totalSales) * 100 : 0;
 
             var dashboard = new DashboardResponse(
                 totalSales,
@@ -109,11 +157,43 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
                 netProfit,
                 totalSalesReturns,
                 totalPurchaseReturns,
+                avgInvoiceValue,
+                profitMarginPct,
                 lowStockCount,
+                todayMetrics,
+                monthMetrics,
+                yearMetrics,
                 topProducts,
-                cashierPerformances);
+                cashierPerformances,
+                paymentMethodsSummary,
+                lowStockList);
 
             return Result<DashboardResponse>.Success(dashboard);
+        }
+
+        private static async Task<PeriodMetricsResponse> GetPeriodMetricsAsync(IDbConnection connection, DateTime start, DateTime end)
+        {
+            const string periodSql = """
+                SELECT 
+                    (SELECT ISNULL(SUM(TotalAmount), 0) FROM [Sales].[Sales] WHERE Status = 1 AND SaleDate >= @Start AND SaleDate <= @End) AS TotalSales,
+                    (SELECT COUNT(1) FROM [Sales].[Sales] WHERE Status = 1 AND SaleDate >= @Start AND SaleDate <= @End) AS TotalInvoices,
+                    (SELECT ISNULL(SUM(TotalAmount), 0) FROM [Purchases].[Purchases] WHERE Status = 2 AND PurchaseDate >= @Start AND PurchaseDate <= @End) AS TotalPurchases,
+                    (SELECT ISNULL(SUM(Amount), 0) FROM [Expenses].[Expenses] WHERE ExpenseDate >= @Start AND ExpenseDate <= @End) AS TotalExpenses,
+                    (SELECT ISNULL(SUM(TotalAmount), 0) FROM [Returns].[SalesReturns] WHERE Status = 1 AND ReturnDate >= @Start AND ReturnDate <= @End) AS SalesReturns,
+                    (SELECT ISNULL(SUM(TotalAmount), 0) FROM [Returns].[PurchaseReturns] WHERE Status = 1 AND ReturnDate >= @Start AND ReturnDate <= @End) AS PurchaseReturns
+                """;
+
+            var raw = await connection.QuerySingleAsync(periodSql, new { Start = start, End = end });
+            decimal sales = Convert.ToDecimal(raw.TotalSales);
+            int invoices = Convert.ToInt32(raw.TotalInvoices);
+            decimal purchases = Convert.ToDecimal(raw.TotalPurchases);
+            decimal expenses = Convert.ToDecimal(raw.TotalExpenses);
+            decimal salesReturns = Convert.ToDecimal(raw.SalesReturns);
+            decimal purchaseReturns = Convert.ToDecimal(raw.PurchaseReturns);
+
+            decimal netProfit = (sales - salesReturns) - (purchases - purchaseReturns) - expenses;
+
+            return new PeriodMetricsResponse(sales, netProfit, invoices, purchases, expenses);
         }
     }
 }

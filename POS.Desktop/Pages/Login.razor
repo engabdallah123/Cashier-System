@@ -6,39 +6,39 @@
 @inject NavigationManager Nav
 
 <div style="height: 100vh; display: flex; align-items: center; justify-content: center; background-color: var(--bg-primary);">
-    <div class="modal-card" style="width: 400px;">
-        <div class="text-center mb-4">
+    <div class="card" style="width: 420px; padding: 2.25rem;">
+        <div class="text-center" style="text-align: center; margin-bottom: 1.75rem;">
             <i class="fa-solid fa-cash-register" style="font-size: 3rem; color: var(--accent-blue);"></i>
-            <h2 style="margin-top: 0.5rem; font-weight: 700;">POS Cashier Login</h2>
-            <p style="color: var(--text-secondary); font-size: 0.85rem;">Enter your credentials to access the terminal</p>
+            <h2 style="margin-top: 0.75rem; font-weight: 700; font-size: 1.5rem;">تسجيل الدخول للنظام</h2>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.25rem;">أدخل اسم المستخدم وكلمة المرور للبدء</p>
         </div>
 
         @if (!string.IsNullOrEmpty(errorMessage))
         {
-            <div style="background-color: rgba(239,68,68,0.2); border: 1px solid var(--accent-red); color: #f87171; padding: 0.6rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1rem;">
-                @errorMessage
+            <div style="background-color: rgba(239,68,68,0.2); border: 1px solid var(--accent-red); color: #f87171; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1.25rem;">
+                <i class="fa-solid fa-triangle-exclamation me-1"></i> @errorMessage
             </div>
         }
 
         <EditForm Model="loginModel" OnValidSubmit="HandleLogin">
-            <div style="margin-bottom: 1rem;">
-                <label style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 0.3rem;">Username</label>
-                <InputText @bind-Value="loginModel.Username" class="search-box" style="width: 100%; padding: 0.75rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;" placeholder="admin / cashier" />
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label>اسم المستخدم</label>
+                <InputText @bind-Value="loginModel.Username" class="form-control" placeholder="admin / cashier" />
             </div>
 
-            <div style="margin-bottom: 1.5rem;">
-                <label style="font-size: 0.85rem; color: var(--text-secondary); font-weight: 600; display: block; margin-bottom: 0.3rem;">Password</label>
-                <InputText @bind-Value="loginModel.Password" type="password" style="width: 100%; padding: 0.75rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;" placeholder="******" />
+            <div class="form-group" style="margin-bottom: 1.75rem;">
+                <label>كلمة المرور</label>
+                <InputText @bind-Value="loginModel.Password" type="password" class="form-control" placeholder="******" />
             </div>
 
-            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.85rem;" disabled="@isLoading">
+            <button type="submit" class="btn btn-primary" style="width: 100%; padding: 0.9rem;" disabled="@isLoading">
                 @if (isLoading)
                 {
-                    <i class="fa-solid fa-spinner fa-spin"></i> <span>Authenticating...</span>
+                    <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري التحقق...</span>
                 }
                 else
                 {
-                    <i class="fa-solid fa-right-to-bracket"></i> <span>Login to POS</span>
+                    <i class="fa-solid fa-right-to-bracket me-1"></i> <span>تسجيل الدخول</span>
                 }
             </button>
         </EditForm>
@@ -60,18 +60,19 @@
             var res = await ApiClient.LoginAsync(loginModel);
             if (res is not null)
             {
-                var role = res.Roles.FirstOrDefault() ?? "Cashier";
-                AuthState.MarkUserAsAuthenticated(res.Token, res.FullName, role, Guid.Empty);
+                var role = string.IsNullOrWhiteSpace(res.Role) ? "Cashier" : res.Role;
+                Guid.TryParse(res.UserId, out var userId);
+                AuthState.MarkUserAsAuthenticated(res.AccessToken, res.FullName ?? string.Empty, role, userId);
                 Nav.NavigateTo(role == "Admin" ? "/dashboard" : "/");
             }
             else
             {
-                errorMessage = "Invalid username or password.";
+                errorMessage = "اسم المستخدم أو كلمة المرور غير صحيحة.";
             }
         }
         catch (Exception ex)
         {
-            errorMessage = $"Login error: {ex.Message}";
+            errorMessage = $"خطأ في تسجيل الدخول: {ex.Message}";
         }
         finally
         {

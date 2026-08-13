@@ -5,23 +5,80 @@ using Inventory.Application.Catalog.Products.Queries.GetProductByBarcode;
 using Inventory.Application.Catalog.Products.Queries.GetProductById;
 using Inventory.Application.Catalog.Products.Queries.GetProducts;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using POS.Shared.Application.IService;
 
 namespace POS.WebAPI.Controllers.Inventory
 {
+    public class CreateProductRequest
+    {
+        public string Barcode { get; set; } = default!;
+        public string NameAr { get; set; } = default!;
+        public string NameEn { get; set; } = default!;
+        public string? Description { get; set; }
+        public Guid CategoryId { get; set; }
+        public Guid UnitId { get; set; }
+        public Guid? SupplierId { get; set; }
+        public decimal PurchasePrice { get; set; }
+        public decimal SellingPrice { get; set; }
+        public decimal WholesalePrice { get; set; }
+        public decimal InitialStock { get; set; } = 0;
+        public decimal ReorderLevel { get; set; } = 5;
+        public decimal MaxStockLevel { get; set; } = 100;
+        public bool IsWeighable { get; set; }
+        public bool IsActive { get; set; } = true;
+        public bool TrackExpiry { get; set; }
+        public decimal TaxRate { get; set; }
+        public IFormFile? ImageFile { get; set; }
+    }
+
     [ApiController]
     [Route("api/inventory/[controller]")]
     public class ProductsController : ControllerBase
     {
         private readonly IMediator _sender;
+        private readonly IFileService _fileService;
 
-        public ProductsController(IMediator sender)
+        public ProductsController(IMediator sender, IFileService fileService)
         {
             _sender = sender;
+            _fileService = fileService;
         }
 
         [HttpPost]
-        public async Task<IActionResult> Create([FromBody] CreateProductCommand command, CancellationToken ct)
+        [Authorize(Roles = "Admin")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> Create([FromForm] CreateProductRequest request, CancellationToken ct)
+        {
+            string? imageUrl = null;
+            if (request.ImageFile != null && request.ImageFile.Length > 0)
+            {
+                var uploadResult = await _fileService.UploadFileAsync(request.ImageFile, "uploads/products");
+                if (uploadResult.IsFailure)
+                    return BadRequest(uploadResult.Error);
+                imageUrl = uploadResult.Value;
+            }
+
+            var command = new CreateProductCommand(
+                request.Barcode, request.NameAr, request.NameEn,
+                request.CategoryId, request.UnitId,
+                request.PurchasePrice, request.SellingPrice, request.WholesalePrice,
+                request.SupplierId, request.Description,
+                request.ReorderLevel, request.MaxStockLevel,
+                request.IsWeighable, request.IsActive, request.TrackExpiry,
+                request.TaxRate, imageUrl, request.InitialStock);
+
+            var result = await _sender.Send(command, ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return CreatedAtAction(nameof(GetById), new { id = result.Value }, result.Value);
+        }
+
+        [HttpPost("json")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> CreateJson([FromBody] CreateProductCommand command, CancellationToken ct)
         {
             var result = await _sender.Send(command, ct);
             if (result.IsFailure)
@@ -31,6 +88,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpPut("{id:guid}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProductCommand command, CancellationToken ct)
         {
             if (id != command.Id)
@@ -44,6 +102,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpDelete("{id:guid}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
         {
             var result = await _sender.Send(new DeleteProductCommand(id), ct);

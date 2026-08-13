@@ -19,13 +19,12 @@ namespace Inventory.Application.Catalog.Units.Queries.GetUnits
             using var connection = _sqlConnectionFactory.CreateConnection();
 
             const string sql = """
-                SELECT Id, Name, Abbreviation, IsActive, CreatedAt
+                SELECT Id, NameAr, NameEn, Symbol
                 FROM [Inventory].[Units]
-                WHERE (@OnlyActive IS NULL OR IsActive = @OnlyActive)
-                ORDER BY Name ASC
+                ORDER BY NameAr ASC
                 """;
 
-            var units = await connection.QueryAsync<UnitResponse>(sql, new { request.OnlyActive });
+            var units = await connection.QueryAsync<UnitResponse>(sql);
             return Result<IReadOnlyList<UnitResponse>>.Success(units.ToList());
         }
     }

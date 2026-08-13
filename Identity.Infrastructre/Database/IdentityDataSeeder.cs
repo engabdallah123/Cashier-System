@@ -32,10 +32,13 @@ public static class IdentityDataSeeder
         if (adminUser is null)
         {
             adminUser = new ApplicationUser
-            {
+            { 
                 UserName = "admin",
                 Email = "admin@pos.local",
                 FullName = "System Administrator",
+                PhoneNumber = "+201000000000",
+                EmailConfirmed = true,
+                PhoneNumberConfirmed = true,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
@@ -56,6 +59,9 @@ public static class IdentityDataSeeder
                 UserName = "cashier",
                 Email = "cashier@pos.local",
                 FullName = "Default Cashier",
+                PhoneNumber = "+201000000000",
+                EmailConfirmed = true,
+                PhoneNumberConfirmed = true,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
@@ -64,6 +70,29 @@ public static class IdentityDataSeeder
             if (result.Succeeded)
             {
                 await userManager.AddToRoleAsync(cashierUser, "Cashier");
+            }
+        }
+
+        // 4. seed Default Manager User
+        var managerUser = await userManager.FindByNameAsync("manager");
+        if (managerUser is null)
+        {
+            managerUser = new ApplicationUser
+            {
+                UserName = "manager",
+                Email = "manager@pos.local",
+                FullName = "Default Manager",
+                PhoneNumber = "+201000000001",
+                EmailConfirmed = true,
+                PhoneNumberConfirmed = true,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var result = await userManager.CreateAsync(managerUser, "Manager123!");
+            if (result.Succeeded)
+            {
+                await userManager.AddToRoleAsync(managerUser, "Manager");
             }
         }
     }

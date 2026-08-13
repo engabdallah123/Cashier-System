@@ -29,7 +29,7 @@ namespace Sales.Application.Sales.Queries.GetSales
                     END AS Status,
                     s.Notes
                 FROM [Sales].[Sales] s
-                LEFT JOIN [Identity].[AspNetUsers] u ON s.CashierId = CAST(u.Id AS uniqueidentifier)
+                LEFT JOIN [Identity].[AspNetUsers] u ON s.CashierId = TRY_CAST(u.Id AS uniqueidentifier)
                 LEFT JOIN [Sales].[Customers] c ON s.CustomerId = c.Id
                 WHERE 1 = 1
                 """;

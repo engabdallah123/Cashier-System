@@ -8,88 +8,415 @@
 @inject ShiftStateContainer ShiftState
 @inject CustomAuthStateProvider AuthState
 
-<div style="max-width: 800px; margin: 0 auto;">
-    <h2 style="font-weight: 700; margin-bottom: 1.5rem;">Shift Management</h2>
+<div style="max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.75rem;">
+    <div>
+        <h2 style="font-weight: 700;">إدارة وسجل الورديات (الشيفتات)</h2>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
+            فتح وإغلاق الورديات واستعراض سجل الورديات السابقة وتصفيتها حسب التاريخ
+        </p>
+    </div>
 
+    @if (!string.IsNullOrEmpty(shiftError))
+    {
+        <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.85rem;">
+            <i class="fa-solid fa-circle-exclamation me-1"></i> @shiftError
+        </div>
+    }
+
+    <!-- Active Shift Control Card -->
     @if (!ShiftState.IsShiftOpen)
     {
-        <div class="modal-card" style="width: 100%; margin-bottom: 2rem;">
-            <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1rem; color: var(--accent-green);">
-                <i class="fa-solid fa-play-circle"></i> Open New Shift
+        <div class="card">
+            <h3 style="font-size: 1.15rem; font-weight: 700; margin-bottom: 1.25rem; color: var(--accent-green);">
+                <i class="fa-solid fa-play-circle me-1"></i> فتح وردية جديدة
             </h3>
 
-            <div style="margin-bottom: 1rem;">
-                <label style="font-size: 0.85rem; color: var(--text-secondary);">Starting Cash in Drawer (EGP)</label>
-                <input type="number" @bind="startingCash" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white; margin-top: 0.3rem;" />
+            <div class="form-group" style="margin-bottom: 1.25rem;">
+                <label>المبلغ الافتتاحي في درج النقدية (جنيه)</label>
+                <input type="number" @bind="startingCash" class="form-control" style="max-width: 400px;" />
             </div>
 
-            <button class="btn btn-success" style="width: 100%; padding: 0.8rem;" @onclick="OpenShift">
-                <i class="fa-solid fa-cash-register"></i> Open Shift
+            <button class="btn btn-success" style="padding: 0.75rem 1.5rem;" @onclick="OpenShift">
+                <i class="fa-solid fa-cash-register me-1"></i> فتح الوردية
             </button>
         </div>
     }
     else
     {
-        <div class="modal-card" style="width: 100%; margin-bottom: 2rem; border-color: var(--accent-green);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--accent-green);">
-                    <i class="fa-solid fa-circle-check"></i> Shift Currently Active
+        <div class="card" style="border-color: var(--accent-green);">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--accent-green);">
+                    <i class="fa-solid fa-circle-check me-1"></i> الوردية مفتوحة حالياً
                 </h3>
-                <span class="badge badge-green">Shift ID: #@ShiftState.ShiftId.ToString()[..8]</span>
+                <span class="badge badge-green">رقم الوردية: #@ShiftState.ShiftId.ToString()[..8]</span>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
-                <div style="background: var(--bg-primary); padding: 1rem; border-radius: 0.5rem;">
-                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Opened At</div>
-                    <div style="font-size: 1rem; font-weight: 600;">@ShiftState.StartTime.ToString("yyyy-MM-dd HH:mm")</div>
+            <div class="grid-2" style="margin-bottom: 1.5rem;">
+                <div style="background: var(--bg-primary); padding: 1.25rem; border-radius: 0.6rem; border: 1px solid var(--border-color);">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600;">وقت فتح الوردية</div>
+                    <div style="font-size: 1.05rem; font-weight: 600; margin-top: 0.3rem;">@ShiftState.StartTime.ToString("yyyy-MM-dd HH:mm")</div>
                 </div>
-                <div style="background: var(--bg-primary); padding: 1rem; border-radius: 0.5rem;">
-                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Initial Cash</div>
-                    <div style="font-size: 1rem; font-weight: 600; color: var(--accent-green);">@ShiftState.InitialCash.ToString("N2") EGP</div>
+                <div style="background: var(--bg-primary); padding: 1.25rem; border-radius: 0.6rem; border: 1px solid var(--border-color);">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); font-weight: 600;">النقدية الافتتاحية</div>
+                    <div style="font-size: 1.05rem; font-weight: 600; color: var(--accent-green); margin-top: 0.3rem;">@ShiftState.InitialCash.ToString("N2") ج.م</div>
                 </div>
             </div>
 
-            <h4 style="font-size: 1rem; font-weight: 700; margin-bottom: 0.8rem;">Close Shift & Cash Drawer Count</h4>
+            <h4 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 1rem;">إغلاق الوردية وجرد النقدية</h4>
             
-            <div style="margin-bottom: 1rem;">
-                <label style="font-size: 0.85rem; color: var(--text-secondary);">Actual Cash in Drawer (EGP)</label>
-                <input type="number" @bind="actualCashInDrawer" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;" />
+            <div class="grid-2" style="margin-bottom: 1.25rem;">
+                <div class="form-group">
+                    <label>المبلغ الفعلي المتوفر بالدرج (جنيه)</label>
+                    <input type="number" @bind="actualCashInDrawer" class="form-control" />
+                </div>
+                <div class="form-group">
+                    <label>ملاحظات إغلاق الوردية</label>
+                    <input type="text" @bind="closingNotes" class="form-control" placeholder="أدخل أي ملاحظات إن وجدت..." />
+                </div>
             </div>
 
-            <div style="margin-bottom: 1.2rem;">
-                <label style="font-size: 0.85rem; color: var(--text-secondary);">Closing Notes</label>
-                <textarea @bind="closingNotes" rows="2" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;"></textarea>
-            </div>
-
-            <button class="btn btn-danger" style="width: 100%; padding: 0.8rem;" @onclick="CloseShift">
-                <i class="fa-solid fa-lock"></i> Close Shift
+            <button class="btn btn-danger" style="width: 100%; padding: 0.85rem;" @onclick="CloseShift">
+                <i class="fa-solid fa-lock me-1"></i> إغلاق الوردية
             </button>
         </div>
     }
+
+    <!-- Shift History & Date Filtering Section -->
+    <div class="card" style="margin-bottom: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.25rem;">
+            <h3 style="font-size: 1.15rem; font-weight: 700;">
+                <i class="fa-solid fa-history me-1" style="color: var(--accent-indigo);"></i> سجل الورديات المسجلة
+            </h3>
+
+            <!-- Date Filter Inputs -->
+            <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                    <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">من:</label>
+                    <input type="date" class="form-control" style="width: 150px; padding: 0.4rem 0.6rem;" @bind="filterFromDate" />
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 0.4rem;">
+                    <label style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">إلى:</label>
+                    <input type="date" class="form-control" style="width: 150px; padding: 0.4rem 0.6rem;" @bind="filterToDate" />
+                </div>
+
+                <button class="btn btn-primary" style="padding: 0.45rem 0.85rem; font-size: 0.85rem;" @onclick="FilterShifts">
+                    <i class="fa-solid fa-filter me-1"></i> تصفية
+                </button>
+
+                <button class="btn btn-secondary" style="padding: 0.45rem 0.85rem; font-size: 0.85rem;" @onclick="ResetFilter">
+                    <i class="fa-solid fa-rotate-left me-1"></i> إعادة ضبط
+                </button>
+            </div>
+        </div>
+
+        @if (isLoadingHistory)
+        {
+            <div style="text-align: center; padding: 2.5rem; color: var(--text-secondary);">
+                <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--accent-indigo);"></i>
+                <p style="margin-top: 0.5rem;">جاري تحميل سجل الورديات...</p>
+            </div>
+        }
+        else if (!shiftsHistory.Any())
+        {
+            <div style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                <i class="fa-solid fa-calendar-xmark fa-2x" style="margin-bottom: 0.5rem; display: block;"></i>
+                لا توجد ورديات مسجلة في الفترات المحددة.
+            </div>
+        }
+        else
+        {
+            <div class="table-container" style="margin-bottom: 0; box-shadow: none; border-radius: 0.5rem;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>الكاشير</th>
+                            <th>وقت الفتح</th>
+                            <th>وقت الإغلاق</th>
+                            <th>الافتتاحي</th>
+                            <th>الفعلي</th>
+                            <th>الفرق</th>
+                            <th>المبيعات</th>
+                            <th>الفواتير</th>
+                            <th>الحالة</th>
+                            <th>التفاصيل</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in PagedShifts)
+                        {
+                            <tr>
+                                <td style="font-weight: 600;">@(string.IsNullOrWhiteSpace(s.CashierName) ? "كاشير" : s.CashierName)</td>
+                                <td>@s.OpenedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td>@(s.ClosedAt.HasValue ? s.ClosedAt.Value.ToString("yyyy-MM-dd HH:mm") : "-")</td>
+                                <td>@s.OpeningCash.ToString("N2") ج.م</td>
+                                <td>@(s.Status == "Closed" ? s.ClosingCash.ToString("N2") + " ج.م" : "-")</td>
+                                <td>
+                                    @if (s.Status == "Closed")
+                                    {
+                                        if (s.CashDifference == 0)
+                                        {
+                                            <span class="badge badge-green">مطابق</span>
+                                        }
+                                        else if (s.CashDifference > 0)
+                                        {
+                                            <span class="badge badge-indigo">+@s.CashDifference.ToString("N2") (زيادة)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-red">@s.CashDifference.ToString("N2") (عجز)</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span>-</span>
+                                    }
+                                </td>
+                                <td style="font-weight: 700; color: var(--accent-emerald);">@s.TotalSales.ToString("N2") ج.م</td>
+                                <td>@s.TotalInvoices</td>
+                                <td>
+                                    @if (s.Status == "Open")
+                                    {
+                                        <span class="badge badge-green"><i class="fa-solid fa-lock-open me-1"></i> مفتوحة</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-secondary" style="background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border-color-light);"><i class="fa-solid fa-lock me-1"></i> مغلقة</span>
+                                    }
+                                </td>
+                                <td>
+                                    <button class="btn btn-secondary" style="padding: 0.25rem 0.55rem; font-size: 0.8rem;" @onclick="() => ViewShiftDetails(s)">
+                                        <i class="fa-solid fa-eye"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <Pagination CurrentPage="@currentPage" TotalItems="@shiftsHistory.Count" PageSize="@pageSize" OnPageChanged="@(p => currentPage = p)" />
+        }
+    </div>
 </div>
+
+<!-- Shift Details Modal -->
+@if (selectedShiftDetails != null)
+{
+    <div class="modal-overlay" @onclick="CloseDetailsModal">
+        <div class="modal-card" style="width: 620px;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fa-solid fa-file-invoice-dollar me-2" style="color: var(--accent-indigo);"></i>
+                    تفاصيل الوردية #@selectedShiftDetails.Id.ToString()[..8]
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseDetailsModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div class="grid-2" style="margin-bottom: 1.25rem;">
+                    <div style="background: var(--bg-primary); padding: 0.85rem; border-radius: 0.5rem; border: 1px solid var(--border-color-light);">
+                        <span style="font-size: 0.78rem; color: var(--text-secondary); display: block;">اسم الكاشير</span>
+                        <strong style="font-size: 0.95rem;">@(string.IsNullOrWhiteSpace(selectedShiftDetails.CashierName) ? "غير محدد" : selectedShiftDetails.CashierName)</strong>
+                    </div>
+                    <div style="background: var(--bg-primary); padding: 0.85rem; border-radius: 0.5rem; border: 1px solid var(--border-color-light);">
+                        <span style="font-size: 0.78rem; color: var(--text-secondary); display: block;">حالة الوردية</span>
+                        <strong style="font-size: 0.95rem;">@(selectedShiftDetails.Status == "Open" ? "مفتوحة" : "مغلقة")</strong>
+                    </div>
+                </div>
+
+                <div class="grid-2" style="margin-bottom: 1.25rem;">
+                    <div style="background: var(--bg-primary); padding: 0.85rem; border-radius: 0.5rem; border: 1px solid var(--border-color-light);">
+                        <span style="font-size: 0.78rem; color: var(--text-secondary); display: block;">وقت الفتح</span>
+                        <span>@selectedShiftDetails.OpenedAt.ToString("yyyy-MM-dd HH:mm:ss")</span>
+                    </div>
+                    <div style="background: var(--bg-primary); padding: 0.85rem; border-radius: 0.5rem; border: 1px solid var(--border-color-light);">
+                        <span style="font-size: 0.78rem; color: var(--text-secondary); display: block;">وقت الإغلاق</span>
+                        <span>@(selectedShiftDetails.ClosedAt.HasValue ? selectedShiftDetails.ClosedAt.Value.ToString("yyyy-MM-dd HH:mm:ss") : "لا زالت مفتوحة")</span>
+                    </div>
+                </div>
+
+                <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--accent-indigo);">ملخص مبيعات الوردية</h4>
+                <div class="grid-3" style="margin-bottom: 1.25rem;">
+                    <div style="background: var(--bg-card); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color-light); text-align: center;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); display: block;">إجمالي المبيعات</span>
+                        <strong style="font-size: 1.05rem; color: var(--accent-emerald);">@selectedShiftDetails.TotalSales.ToString("N2") ج.م</strong>
+                    </div>
+                    <div style="background: var(--bg-card); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color-light); text-align: center;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); display: block;">عدد الفواتير</span>
+                        <strong style="font-size: 1.05rem;">@selectedShiftDetails.TotalInvoices</strong>
+                    </div>
+                    <div style="background: var(--bg-card); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color-light); text-align: center;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); display: block;">عدد المرتجعات</span>
+                        <strong style="font-size: 1.05rem; color: var(--accent-red);">@selectedShiftDetails.TotalReturns</strong>
+                    </div>
+                </div>
+
+                <div class="grid-2" style="margin-bottom: 1.25rem;">
+                    <div style="background: var(--bg-card); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color-light);">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); display: block;">تحصيل نقدي (كاش)</span>
+                        <strong>@selectedShiftDetails.TotalCash.ToString("N2") ج.م</strong>
+                    </div>
+                    <div style="background: var(--bg-card); padding: 0.75rem; border-radius: 0.5rem; border: 1px solid var(--border-color-light);">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); display: block;">تحصيل شبكة / فيزا</span>
+                        <strong>@selectedShiftDetails.TotalCard.ToString("N2") ج.م</strong>
+                    </div>
+                </div>
+
+                <h4 style="font-size: 0.95rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--accent-indigo);">جرد درج النقدية</h4>
+                <div class="grid-2" style="margin-bottom: 1rem;">
+                    <div style="background: var(--bg-primary); padding: 0.75rem; border-radius: 0.5rem;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); display: block;">النقدية الافتتاحية</span>
+                        <strong>@selectedShiftDetails.OpeningCash.ToString("N2") ج.م</strong>
+                    </div>
+                    <div style="background: var(--bg-primary); padding: 0.75rem; border-radius: 0.5rem;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); display: block;">النقدية المحسوبة بالسستم</span>
+                        <strong>@selectedShiftDetails.SystemCash.ToString("N2") ج.م</strong>
+                    </div>
+                    <div style="background: var(--bg-primary); padding: 0.75rem; border-radius: 0.5rem;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); display: block;">النقدية الفعلية بالدرج</span>
+                        <strong>@selectedShiftDetails.ClosingCash.ToString("N2") ج.م</strong>
+                    </div>
+                    <div style="background: var(--bg-primary); padding: 0.75rem; border-radius: 0.5rem;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary); display: block;">فارق النقدية (الزيادة / العجز)</span>
+                        <strong style="color: @(selectedShiftDetails.CashDifference >= 0 ? "var(--accent-emerald)" : "var(--accent-red)");">
+                            @selectedShiftDetails.CashDifference.ToString("N2") ج.م
+                        </strong>
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(selectedShiftDetails.ClosingNotes))
+                {
+                    <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); padding: 0.75rem; border-radius: 0.5rem; font-size: 0.85rem; color: var(--accent-amber);">
+                        <strong>ملاحظات الإغلاق:</strong> @selectedShiftDetails.ClosingNotes
+                    </div>
+                }
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseDetailsModal">إغلاق</button>
+            </div>
+        </div>
+    </div>
+}
 
 @code {
     private decimal startingCash = 500;
     private decimal actualCashInDrawer = 0;
     private string closingNotes = string.Empty;
+    private string? shiftError;
+
+    private DateTime? filterFromDate;
+    private DateTime? filterToDate;
+
+    private List<ShiftDto> shiftsHistory = new();
+    private bool isLoadingHistory = true;
+
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private IEnumerable<ShiftDto> PagedShifts => shiftsHistory.Skip((currentPage - 1) * pageSize).Take(pageSize);
+
+    private ShiftDto? selectedShiftDetails;
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadActiveShiftAsync();
+        await LoadShiftsHistoryAsync();
+    }
+
+    private async Task LoadActiveShiftAsync()
+    {
+        shiftError = null;
+
+        if (AuthState.UserId != Guid.Empty)
+        {
+            var activeShift = await ApiClient.GetCurrentShiftAsync(AuthState.UserId);
+            if (activeShift != null && activeShift.Status == "Open")
+            {
+                ShiftState.SetActiveShift(activeShift.Id, activeShift.OpenedAt, activeShift.OpeningCash);
+            }
+        }
+    }
+
+    private async Task LoadShiftsHistoryAsync()
+    {
+        isLoadingHistory = true;
+        try
+        {
+            DateTime? from = filterFromDate?.Date;
+            DateTime? to = filterToDate?.Date.AddDays(1).AddTicks(-1);
+
+            shiftsHistory = await ApiClient.GetShiftsAsync(fromDate: from, toDate: to);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading shifts history: {ex.Message}");
+        }
+        finally
+        {
+            isLoadingHistory = false;
+        }
+    }
+
+    private async Task FilterShifts()
+    {
+        await LoadShiftsHistoryAsync();
+    }
+
+    private async Task ResetFilter()
+    {
+        filterFromDate = null;
+        filterToDate = null;
+        await LoadShiftsHistoryAsync();
+    }
+
+    private void ViewShiftDetails(ShiftDto shift)
+    {
+        selectedShiftDetails = shift;
+    }
+
+    private void CloseDetailsModal()
+    {
+        selectedShiftDetails = null;
+    }
 
     private async Task OpenShift()
     {
+        shiftError = null;
+        if (AuthState.UserId == Guid.Empty)
+        {
+            shiftError = "جلسة الكاشير غير صالحة. الرجاء تسجيل الخروج والدخول مجدداً.";
+            return;
+        }
+
         var cmd = new OpenShiftCommand(AuthState.UserId, startingCash);
-        var id = await ApiClient.OpenShiftAsync(cmd);
+        var (id, error) = await ApiClient.OpenShiftAsync(cmd);
         if (id.HasValue)
         {
             ShiftState.SetActiveShift(id.Value, DateTime.Now, startingCash);
+            await LoadShiftsHistoryAsync();
+        }
+        else
+        {
+            shiftError = !string.IsNullOrEmpty(error) ? error : "فشل فتح الوردية. قد يكون لدى الكاشير وردية مفتوحة بالفعل.";
         }
     }
 
     private async Task CloseShift()
     {
+        shiftError = null;
         var cmd = new CloseShiftCommand(ShiftState.ShiftId, actualCashInDrawer, closingNotes);
         var success = await ApiClient.CloseShiftAsync(cmd);
         if (success)
         {
             ShiftState.ClearShift();
+            await LoadShiftsHistoryAsync();
+        }
+        else
+        {
+            shiftError = "فشل إغلاق الوردية. الرجاء مراجعة سجلات النظام.";
         }
     }
 }

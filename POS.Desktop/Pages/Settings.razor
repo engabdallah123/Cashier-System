@@ -1,78 +1,212 @@
 @page "/settings"
 @using Microsoft.AspNetCore.Authorization
 @attribute [Authorize(Roles = "Admin,Manager")]
-@inject HttpClient Http
+@inject PosApiClient ApiClient
+@inject StoreStateContainer StoreState
 
-<div style="max-width: 600px;">
-    <h2 style="font-weight: 700; margin-bottom: 1.5rem;">Store & POS Settings</h2>
+<div style="max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem;">
+    <div>
+        <h2 style="font-weight: 700;">إعدادات المتجر والنظام</h2>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
+            تحديث البيانات الأساسية للمتجر، نسبة الضريبة العامة، الخيارات الفنية وسياسة البيع بالسالب
+        </p>
+    </div>
 
-    @if (setting is not null)
+    @if (!string.IsNullOrEmpty(saveSuccessMessage))
     {
-        <div class="modal-card" style="width: 100%;">
-            <div style="margin-bottom: 1rem;">
-                <label style="font-size: 0.85rem; color: var(--text-secondary);">Store Name</label>
-                <input @bind="setting.StoreName" class="search-box" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;" />
+        <div style="background-color: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: var(--accent-emerald); padding: 0.85rem 1.25rem; border-radius: 0.6rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fa-solid fa-circle-check"></i> @saveSuccessMessage
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(saveErrorMessage))
+    {
+        <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.85rem 1.25rem; border-radius: 0.6rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fa-solid fa-circle-exclamation"></i> @saveErrorMessage
+        </div>
+    }
+
+    @if (isLoading)
+    {
+        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+            <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--accent-indigo);"></i>
+            <p style="margin-top: 0.5rem;">جاري تحميل إعدادات المتجر...</p>
+        </div>
+    }
+    else
+    {
+        <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <!-- Store Profile Section -->
+            <div class="card">
+                <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1.25rem; color: var(--accent-indigo);">
+                    <i class="fa-solid fa-store me-2"></i> بيانات المتجر الأساسية
+                </h3>
+
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>اسم المتجر / السوبرماركت <span style="color: var(--accent-red);">*</span></label>
+                        <input @bind="storeName" class="form-control" placeholder="أدخل اسم المتجر..." />
+                    </div>
+
+                    <div class="form-group">
+                        <label>العملة الرسمية</label>
+                        <input @bind="currency" class="form-control" placeholder="مثال: EGP أو ج.م" />
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>العنوان التفصيلي</label>
+                        <input @bind="address" class="form-control" placeholder="أدخل عنوان المتجر..." />
+                    </div>
+
+                    <div class="form-group">
+                        <label>رقم الهاتف / التواصل</label>
+                        <input @bind="phone" class="form-control" placeholder="مثال: 01000000000" />
+                    </div>
+                </div>
             </div>
 
-            <div style="margin-bottom: 1rem;">
-                <label style="font-size: 0.85rem; color: var(--text-secondary);">Address</label>
-                <input @bind="setting.Address" class="search-box" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;" />
+            <!-- Tax & Inventory Section -->
+            <div class="card">
+                <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1.25rem; color: var(--accent-indigo);">
+                    <i class="fa-solid fa-percent me-2"></i> إعدادات الضريبة وسياسات البيع
+                </h3>
+
+                <div class="grid-2" style="margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label>نسبة ضريبة القيمة المضافة الافتراضية (%)</label>
+                        <input type="number" step="0.1" @bind="taxRate" class="form-control" />
+                    </div>
+
+                    <div class="form-group" style="justify-content: flex-end; padding-bottom: 0.5rem;">
+                        <div style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer;">
+                            <input type="checkbox" @bind="isTaxIncluded" id="isTaxInc" style="width: 18px; height: 18px; cursor: pointer;" />
+                            <label for="isTaxInc" style="font-size: 0.9rem; font-weight: 600; cursor: pointer;">الأسعار المعروضة شاملة الضريبة تلقائياً</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background: var(--bg-primary); padding: 1rem 1.25rem; border-radius: 0.6rem; border: 1px solid var(--border-color); display: flex; align-items: center; gap: 0.75rem;">
+                    <input type="checkbox" @bind="allowNegativeStock" id="negStock" style="width: 20px; height: 20px; cursor: pointer;" />
+                    <div>
+                        <label for="negStock" style="font-size: 0.95rem; font-weight: 700; cursor: pointer; display: block;">السماح بالبيع بالسالب (تجاوز نفاد المخزون)</label>
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">عند تفعيله، يمكن للكاشير إتمام عمليات البيع حتى إن كان رصيد الصنف بالكمية صفر.</span>
+                    </div>
+                </div>
             </div>
 
-            <div style="margin-bottom: 1rem;">
-                <label style="font-size: 0.85rem; color: var(--text-secondary);">Phone</label>
-                <input @bind="setting.Phone" class="search-box" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;" />
+            <!-- Invoice Settings Section -->
+            <div class="card">
+                <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 1.25rem; color: var(--accent-indigo);">
+                    <i class="fa-solid fa-receipt me-2"></i> إعدادات تذييل الفاتورة
+                </h3>
+
+                <div class="form-group">
+                    <label>رسالة التذييل (تطبع في أسفل جميع إيصالات الكاشير)</label>
+                    <textarea @bind="invoiceFooterMessage" rows="3" class="form-control" placeholder="شكراً لزيارتكم! نتمنى لكم يوماً سعيداً."></textarea>
+                </div>
             </div>
 
-            <div style="margin-bottom: 1rem;">
-                <label style="font-size: 0.85rem; color: var(--text-secondary);">Currency</label>
-                <input @bind="setting.Currency" class="search-box" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;" />
+            <!-- Save Action Bar -->
+            <div style="display: flex; justify-content: flex-end;">
+                <button class="btn btn-primary" style="padding: 0.85rem 2rem; font-size: 1rem;" disabled="@isSaving" @onclick="SaveSettings">
+                    @if (isSaving)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الحفظ...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-floppy-disk me-1"></i> <span>حفظ الإعدادات</span>
+                    }
+                </button>
             </div>
-
-            <div style="margin-bottom: 1rem;">
-                <label style="font-size: 0.85rem; color: var(--text-secondary);">Invoice Footer Message</label>
-                <textarea @bind="setting.InvoiceFooterMessage" rows="2" style="width: 100%; padding: 0.65rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white;"></textarea>
-            </div>
-
-            <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem;">
-                <input type="checkbox" @bind="setting.AllowNegativeStock" id="negStock" />
-                <label for="negStock" style="font-size: 0.9rem;">Allow Negative Stock Sales (Admin / Manager override)</label>
-            </div>
-
-            <button class="btn btn-primary" style="width: 100%;" @onclick="SaveSettings">
-                <i class="fa-solid fa-save"></i> Save Store Settings
-            </button>
         </div>
     }
 </div>
 
 @code {
-    public class StoreSettingModel
-    {
-        public string StoreName { get; set; } = string.Empty;
-        public string? Address { get; set; }
-        public string? Phone { get; set; }
-        public string Currency { get; set; } = "EGP";
-        public string? InvoiceFooterMessage { get; set; }
-        public bool AllowNegativeStock { get; set; }
-    }
+    private string storeName = string.Empty;
+    private string? address;
+    private string? phone;
+    private decimal taxRate = 14;
+    private bool isTaxIncluded = false;
+    private string currency = "EGP";
+    private string? invoiceFooterMessage;
+    private bool allowNegativeStock = false;
 
-    private StoreSettingModel? setting;
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private string? saveSuccessMessage;
+    private string? saveErrorMessage;
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadSettingsAsync();
+    }
+
+    private async Task LoadSettingsAsync()
+    {
+        isLoading = true;
+        saveErrorMessage = null;
         try
         {
-            setting = await Http.GetFromJsonAsync<StoreSettingModel>("api/settings");
+            var res = await ApiClient.GetSettingsAsync();
+            if (res != null)
+            {
+                storeName = res.StoreName;
+                address = res.Address;
+                phone = res.Phone;
+                taxRate = res.TaxRate;
+                isTaxIncluded = res.IsTaxIncluded;
+                currency = string.IsNullOrWhiteSpace(res.Currency) ? "EGP" : res.Currency;
+                invoiceFooterMessage = res.InvoiceFooterMessage;
+                allowNegativeStock = res.AllowNegativeStock;
+            }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            saveErrorMessage = $"خطأ في تحميل الإعدادات: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
     }
 
     private async Task SaveSettings()
     {
-        if (setting is not null)
+        if (string.IsNullOrWhiteSpace(storeName))
         {
-            await Http.PutAsJsonAsync("api/settings", setting);
+            saveErrorMessage = "الرجاء إدخال اسم المتجر.";
+            return;
+        }
+
+        isSaving = true;
+        saveSuccessMessage = null;
+        saveErrorMessage = null;
+
+        var req = new UpdateStoreSettingRequest(
+            StoreName: storeName,
+            Address: address,
+            Phone: phone,
+            TaxRate: taxRate,
+            IsTaxIncluded: isTaxIncluded,
+            Currency: currency,
+            InvoiceFooterMessage: invoiceFooterMessage,
+            AllowNegativeStock: allowNegativeStock);
+
+        var (success, error) = await ApiClient.UpdateSettingsAsync(req);
+        isSaving = false;
+
+        if (success)
+        {
+            saveSuccessMessage = "تم حفظ إعدادات المتجر بنجاح.";
+            await StoreState.LoadSettingsAsync(ApiClient);
+        }
+        else
+        {
+            saveErrorMessage = !string.IsNullOrEmpty(error) ? error : "فشل حفظ الإعدادات.";
         }
     }
 }

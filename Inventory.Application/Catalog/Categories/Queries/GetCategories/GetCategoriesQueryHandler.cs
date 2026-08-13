@@ -19,10 +19,10 @@ namespace Inventory.Application.Catalog.Categories.Queries.GetCategories
             using var connection = _sqlConnectionFactory.CreateConnection();
 
             const string sql = """
-                SELECT Id, Name, Description, IsActive, CreatedAt
+                SELECT Id, NameAr, NameEn, ParentCategoryId, IsActive, CreatedAt
                 FROM [Inventory].[Categories]
                 WHERE (@OnlyActive IS NULL OR IsActive = @OnlyActive)
-                ORDER BY Name ASC
+                ORDER BY NameAr ASC
                 """;
 
             var categories = await connection.QueryAsync<CategoryResponse>(sql, new { request.OnlyActive });

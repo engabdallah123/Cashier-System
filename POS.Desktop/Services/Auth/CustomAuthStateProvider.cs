@@ -25,7 +25,7 @@ namespace POS.Desktop.Services.Auth
             }
 
             var claims = ParseClaimsFromJwt(_token);
-            var identity = new ClaimsIdentity(claims, "jwt");
+            var identity = new ClaimsIdentity(claims, "jwt", ClaimTypes.Name, ClaimTypes.Role);
             var user = new ClaimsPrincipal(identity);
             return Task.FromResult(new AuthenticationState(user));
         }
@@ -38,8 +38,15 @@ namespace POS.Desktop.Services.Auth
             _userId = userId;
 
             var claims = ParseClaimsFromJwt(token);
-            var identity = new ClaimsIdentity(claims, "jwt");
+            var identity = new ClaimsIdentity(claims, "jwt", ClaimTypes.Name, ClaimTypes.Role);
             var user = new ClaimsPrincipal(identity);
+
+            // Extract role from claims if passed role is null or empty
+            var roleClaim = claims.FirstOrDefault(c => c.Type == ClaimTypes.Role || c.Type == "role");
+            if (roleClaim != null && !string.IsNullOrEmpty(roleClaim.Value))
+            {
+                _userRole = roleClaim.Value;
+            }
 
             NotifyAuthenticationStateChanged(Task.FromResult(new AuthenticationState(user)));
         }
@@ -69,16 +76,30 @@ namespace POS.Desktop.Services.Auth
 
             foreach (var kvp in keyValuePairs)
             {
+                var claimType = kvp.Key;
+                if (claimType.Equals("role", StringComparison.OrdinalIgnoreCase) || claimType.Equals("http://schemas.microsoft.com/ws/2008/06/identity/claims/role", StringComparison.OrdinalIgnoreCase))
+                {
+                    claimType = ClaimTypes.Role;
+                }
+                else if (claimType.Equals("name", StringComparison.OrdinalIgnoreCase) || claimType.Equals("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name", StringComparison.OrdinalIgnoreCase))
+                {
+                    claimType = ClaimTypes.Name;
+                }
+                else if (claimType.Equals("sub", StringComparison.OrdinalIgnoreCase) || claimType.Equals("nameid", StringComparison.OrdinalIgnoreCase) || claimType.Equals("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier", StringComparison.OrdinalIgnoreCase))
+                {
+                    claimType = ClaimTypes.NameIdentifier;
+                }
+
                 if (kvp.Value is JsonElement element && element.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var item in element.EnumerateArray())
                     {
-                        claims.Add(new Claim(kvp.Key, item.ToString()));
+                        claims.Add(new Claim(claimType, item.ToString()));
                     }
                 }
                 else
                 {
-                    claims.Add(new Claim(kvp.Key, kvp.Value.ToString() ?? string.Empty));
+                    claims.Add(new Claim(claimType, kvp.Value?.ToString() ?? string.Empty));
                 }
             }
 

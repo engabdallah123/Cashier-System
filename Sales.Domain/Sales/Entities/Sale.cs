@@ -86,7 +86,9 @@ namespace Sales.Domain.Sales.Entities
             if (!_items.Any())
                 return Result.Failure(SaleErrors.SaleHasNoItems);
 
-            if (PaidAmount < TotalAmount && !PaymentMethod.Equals("Credit", StringComparison.OrdinalIgnoreCase))
+            CalculateTotals();
+
+            if (PaidAmount + 0.01m < TotalAmount && !PaymentMethod.Equals("Credit", StringComparison.OrdinalIgnoreCase))
                 return Result.Failure(SaleErrors.InsufficientPaidAmount);
 
             ChangeAmount = PaidAmount > TotalAmount ? PaidAmount - TotalAmount : 0;
@@ -108,8 +110,8 @@ namespace Sales.Domain.Sales.Entities
 
         private void CalculateTotals()
         {
-            SubTotal = _items.Sum(i => i.Total);
-            TotalAmount = SubTotal - DiscountAmount + TaxAmount;
+            SubTotal = _items.Sum(i => i.Quantity * i.UnitPrice);
+            TotalAmount = Math.Max(0, SubTotal - DiscountAmount + TaxAmount);
             ChangeAmount = PaidAmount > TotalAmount ? PaidAmount - TotalAmount : 0;
         }
     }

@@ -1,44 +1,252 @@
 @page "/expenses"
 @using Microsoft.AspNetCore.Authorization
+@using global::POS.Desktop.Services.Api
 @attribute [Authorize]
-@inject HttpClient Http
+@inject PosApiClient ApiClient
 
 <div>
-    <h2 style="font-weight: 700; margin-bottom: 1.5rem;">Store Expenses</h2>
+    <div class="page-header">
+        <div>
+            <h2 class="page-title">إدارة المصروفات</h2>
+            <p class="page-subtitle">تسجيل ومتابعة مصروفات السوبرماركت والتشغيل</p>
+        </div>
+        <button class="btn btn-primary" @onclick="OpenAddModal">
+            <i class="fa-solid fa-plus me-1"></i> إضافة مصروف جديد
+        </button>
+    </div>
 
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>Title</th>
-                <th>Category</th>
-                <th>Amount</th>
-                <th>Expense Date</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var exp in expenses)
-            {
+    <div style="display: flex; gap: 1rem; margin-bottom: 1.25rem; align-items: center;">
+        <div class="search-box" style="max-width: 380px;">
+            <i class="fa-solid fa-search"></i>
+            <input @bind="searchQuery" @bind:event="oninput" @onkeyup="FilterExpenses" placeholder="ابحث في المصروفات..." />
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-secondary);">
+            إجمالي المصروفات: <strong style="color: var(--accent-red);">@filteredExpenses.Sum(e => e.Amount).ToString("N2") ج.م</strong> (@filteredExpenses.Count مصروف)
+        </div>
+    </div>
+
+    <div class="table-container">
+        <table class="data-table">
+            <thead>
                 <tr>
-                    <td style="font-weight: 600;">@exp.Title</td>
-                    <td>@exp.Category</td>
-                    <td style="color: var(--accent-red); font-weight: 700;">@exp.Amount.ToString("N2") EGP</td>
-                    <td>@exp.ExpenseDate.ToString("yyyy-MM-dd")</td>
+                    <th>بيان المصروف</th>
+                    <th>التصنيف</th>
+                    <th>المبلغ</th>
+                    <th>تاريخ الصرف</th>
+                    <th>ملاحظات</th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @if (isLoading)
+                {
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+                            <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--accent-blue);"></i>
+                            <p style="margin-top: 0.5rem;">جاري تحميل المصروفات...</p>
+                        </td>
+                    </tr>
+                }
+                else if (!filteredExpenses.Any())
+                {
+                    <tr>
+                        <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+                            <i class="fa-solid fa-wallet" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
+                            لا توجد مصروفات مسجلة حالياً.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var exp in PagedExpenses)
+                    {
+                        <tr>
+                            <td style="font-weight: 600;">@exp.Title</td>
+                            <td>
+                                <span class="badge badge-indigo">
+                                    @exp.Category
+                                </span>
+                            </td>
+                            <td style="color: var(--accent-red); font-weight: 700;">@exp.Amount.ToString("N2") ج.م</td>
+                            <td>@exp.ExpenseDate.ToString("yyyy-MM-dd HH:mm")</td>
+                            <td style="color: var(--text-secondary); font-size: 0.85rem;">@(string.IsNullOrWhiteSpace(exp.Notes) ? "-" : exp.Notes)</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <Pagination CurrentPage="@currentPage" TotalItems="@filteredExpenses.Count" PageSize="@pageSize" OnPageChanged="@(p => currentPage = p)" OnPageSizeChanged="@(s => { pageSize = s; currentPage = 1; EnsureValidPage(); })" />
 </div>
 
+<!-- Add Expense Modal -->
+@if (showAddModal)
+{
+    <div class="modal-overlay" @onclick="CloseAddModal">
+        <div class="modal-card" style="width: 520px;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fa-solid fa-wallet me-2" style="color: var(--accent-red);"></i>
+                    تسجيل مصروف جديد
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseAddModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(errorMessage))
+                {
+                    <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @errorMessage
+                    </div>
+                }
+
+                <div class="form-group">
+                    <label>عنوان المصروف <span style="color: var(--accent-red);">*</span></label>
+                    <input class="form-control" @bind="newExpense.Title" placeholder="مثال: فاتورة كهرباء شهر أغسطس" />
+                </div>
+
+                <div class="form-group">
+                    <label>تصنيف المصروف <span style="color: var(--accent-red);">*</span></label>
+                    <select class="form-select" @bind="newExpense.Category">
+                        <option value="كهرباء ومياه">كهرباء ومياه</option>
+                        <option value="إيجار">إيجار المقر</option>
+                        <option value="صيانة ومعدات">صيانة ومعدات</option>
+                        <option value="رواتب وأجور">رواتب وأجور</option>
+                        <option value="أدوات مكتبية وتغليف">أدوات مكتبية وتغليف</option>
+                        <option value="ضيافة ونظافة">ضيافة ونظافة</option>
+                        <option value="أخرى">أخرى</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>المبلغ (جنيه) <span style="color: var(--accent-red);">*</span></label>
+                    <input type="number" step="0.01" class="form-control" @bind="newExpense.Amount" placeholder="0.00" style="font-size: 1.1rem; font-weight: 700;" />
+                </div>
+
+                <div class="form-group">
+                    <label>ملاحظات إضافية</label>
+                    <textarea class="form-control" rows="2" @bind="newExpense.Notes" placeholder="أدخل تفاصيل إضافية إن وجدت..."></textarea>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseAddModal" disabled="@isSaving">إلغاء</button>
+                <button class="btn btn-danger" @onclick="SaveExpense" disabled="@isSaving">
+                    @if (isSaving)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الحفظ...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-check me-1"></i> <span>حفظ المصروف</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
-    public record ExpenseDto(Guid Id, string Title, string Category, decimal Amount, DateTime ExpenseDate);
     private List<ExpenseDto> expenses = new();
+    private List<ExpenseDto> filteredExpenses = new();
+
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private IEnumerable<ExpenseDto> PagedExpenses => filteredExpenses.Skip((currentPage - 1) * pageSize).Take(pageSize);
+
+    private string searchQuery = string.Empty;
+    private bool isLoading = true;
+
+    private bool showAddModal = false;
+    private bool isSaving = false;
+    private string errorMessage = string.Empty;
+
+    private CreateExpenseModel newExpense = new();
+
+    private class CreateExpenseModel
+    {
+        public string Title { get; set; } = string.Empty;
+        public string Category { get; set; } = "كهرباء ومياه";
+        public decimal Amount { get; set; }
+        public string? Notes { get; set; }
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        try
+        await LoadExpenses();
+    }
+
+    private async Task LoadExpenses()
+    {
+        isLoading = true;
+        expenses = await ApiClient.GetExpensesListAsync();
+        FilterExpenses();
+        isLoading = false;
+    }
+
+    private void FilterExpenses()
+    {
+        currentPage = 1;
+        if (string.IsNullOrWhiteSpace(searchQuery))
         {
-            expenses = await Http.GetFromJsonAsync<List<ExpenseDto>>("api/expenses") ?? new();
+            filteredExpenses = expenses.ToList();
         }
-        catch { }
+        else
+        {
+            filteredExpenses = expenses.Where(e =>
+                e.Title.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                e.Category.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)).ToList();
+        }
+        EnsureValidPage();
+    }
+
+    private void EnsureValidPage()
+    {
+        int maxPage = Math.Max(1, (int)Math.Ceiling((double)filteredExpenses.Count / pageSize));
+        if (currentPage > maxPage) currentPage = maxPage;
+    }
+
+
+    private void OpenAddModal()
+    {
+        newExpense = new CreateExpenseModel();
+        errorMessage = string.Empty;
+        showAddModal = true;
+    }
+
+    private void CloseAddModal() => showAddModal = false;
+
+    private async Task SaveExpense()
+    {
+        if (string.IsNullOrWhiteSpace(newExpense.Title))
+        {
+            errorMessage = "الرجاء إدخال عنوان المصروف.";
+            return;
+        }
+
+        if (newExpense.Amount <= 0)
+        {
+            errorMessage = "الرجاء إدخال مبلغ صحيح أكبر من صفر.";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = string.Empty;
+
+        var req = new CreateExpenseRequest(newExpense.Title, newExpense.Category, newExpense.Amount, newExpense.Notes);
+        var (success, error) = await ApiClient.CreateExpenseAsync(req);
+        isSaving = false;
+
+        if (success)
+        {
+            CloseAddModal();
+            await LoadExpenses();
+        }
+        else
+        {
+            errorMessage = !string.IsNullOrEmpty(error) ? error : "فشل إضافة المصروف.";
+        }
     }
 }

@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using Microsoft.Extensions.Logging;
 using POS.Shared.Domain;
 using Serilog.Context;
@@ -38,7 +38,11 @@ public class LoggingBehavior<TRequest, TResponse>
             {
                 using (LogContext.PushProperty("Error", result.Error, true))
                 {
-                    _logger.LogError("Request {RequestName} processed with error", requestName);
+                    _logger.LogWarning(
+                        "Request {RequestName} processed with error. Code: {ErrorCode}, Message: {ErrorMessage}",
+                        requestName,
+                        result.Error.Code,
+                        result.Error.Name);
                 }
             }
 

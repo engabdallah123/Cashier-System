@@ -25,18 +25,37 @@ namespace POS.Desktop
             serviceCollection.AddAuthorizationCore();
 
             serviceCollection.AddTransient<BearerTokenHandler>();
+
+            var createHandler = () => new HttpClientHandler
+            {
+                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
+            };
+
+            // Register untyped HttpClient for pages using @inject HttpClient
+            serviceCollection.AddHttpClient("", client =>
+            {
+                client.BaseAddress = new Uri("https://localhost:7198/");
+            })
+            .ConfigurePrimaryHttpMessageHandler(createHandler)
+            .AddHttpMessageHandler<BearerTokenHandler>();
+
             serviceCollection.AddHttpClient<PosApiClient>(client =>
             {
                 client.BaseAddress = new Uri("https://localhost:7198/");
-            }).AddHttpMessageHandler<BearerTokenHandler>();
+            })
+            .ConfigurePrimaryHttpMessageHandler(createHandler)
+            .AddHttpMessageHandler<BearerTokenHandler>();
 
             serviceCollection.AddHttpClient<IInvoicePrinterService, QuestPdfInvoicePrinter>(client =>
             {
                 client.BaseAddress = new Uri("https://localhost:7198/");
-            }).AddHttpMessageHandler<BearerTokenHandler>();
+            })
+            .ConfigurePrimaryHttpMessageHandler(createHandler)
+            .AddHttpMessageHandler<BearerTokenHandler>();
 
             serviceCollection.AddSingleton<ShiftStateContainer>();
             serviceCollection.AddSingleton<CartStateContainer>();
+            serviceCollection.AddSingleton<StoreStateContainer>();
 
             Services = serviceCollection.BuildServiceProvider();
         }

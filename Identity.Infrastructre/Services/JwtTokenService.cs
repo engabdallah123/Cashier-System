@@ -30,7 +30,7 @@ namespace Identity.Infrastructre.Services
             {
                 new(ClaimTypes.NameIdentifier, user.Id),
                 new(ClaimTypes.Name, user.UserName ?? string.Empty),
-                new(ClaimTypes.GivenName, user.FullName),
+                new(ClaimTypes.GivenName, user.FullName ?? string.Empty),
                 new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
             };
 

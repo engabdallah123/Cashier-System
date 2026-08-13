@@ -1,4 +1,4 @@
-﻿#region before
+#region before
 //using Microsoft.AspNetCore.Hosting;
 //using Microsoft.AspNetCore.Http;
 //using Modules.Shared.Application.IService;
@@ -176,6 +176,22 @@ namespace POS.Shared.Infrastructure.Services // يُفضل نقله للـ Infra
             _webHostEnvironment = webHostEnvironment;
         }
 
+        private string GetWebRootPath()
+        {
+            var webRoot = _webHostEnvironment.WebRootPath;
+            if (string.IsNullOrWhiteSpace(webRoot))
+            {
+                webRoot = Path.Combine(_webHostEnvironment.ContentRootPath, "wwwroot");
+            }
+
+            if (!Directory.Exists(webRoot))
+            {
+                Directory.CreateDirectory(webRoot);
+            }
+
+            return webRoot;
+        }
+
         public async Task<Result> DeleteFileAsync(string filePath)
         {
             if (string.IsNullOrWhiteSpace(filePath))
@@ -184,7 +200,7 @@ namespace POS.Shared.Infrastructure.Services // يُفضل نقله للـ Infra
             try
             {
                 var fullPath = Path.Combine(
-                    _webHostEnvironment.WebRootPath,
+                    GetWebRootPath(),
                     filePath.TrimStart('/', '\\'));
 
                 if (File.Exists(fullPath))
@@ -224,7 +240,7 @@ namespace POS.Shared.Infrastructure.Services // يُفضل نقله للـ Infra
             try
             {
                 var path = Path.Combine(
-                    _webHostEnvironment.WebRootPath,
+                    GetWebRootPath(),
                     folder.TrimStart('/', '\\'));
 
                 var extension = Path.GetExtension(file.FileName);
@@ -260,7 +276,7 @@ namespace POS.Shared.Infrastructure.Services // يُفضل نقله للـ Infra
             try
             {
                 var fullPath = Path.Combine(
-                    _webHostEnvironment.WebRootPath,
+                    GetWebRootPath(),
                     imageSrc.TrimStart('/', '\\'));
 
                 if (!File.Exists(fullPath))
@@ -287,7 +303,7 @@ namespace POS.Shared.Infrastructure.Services // يُفضل نقله للـ Infra
             try
             {
                 var fullPath = Path.Combine(
-                    _webHostEnvironment.WebRootPath,
+                    GetWebRootPath(),
                     imageSrc.TrimStart('/', '\\'));
 
                 if (!File.Exists(fullPath))

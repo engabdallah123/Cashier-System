@@ -22,7 +22,7 @@
                        @bind="scannedBarcode" 
                        @bind:event="oninput" 
                        @onkeyup="HandleBarcodeKeyUp"
-                       placeholder="Scan Barcode (HID) or enter manually... [Press Enter]" 
+                       placeholder="امسح الباركود أو أدخله يدوياً... [Enter]" 
                        style="border-color: var(--accent-blue);" />
             </div>
 
@@ -32,14 +32,14 @@
                 <input @bind="searchTerm" 
                        @bind:event="oninput" 
                        @onkeyup="SearchProducts" 
-                       placeholder="Search products by name... [F1]" />
+                       placeholder="ابحث عن منتج بالاسم... [F1]" />
             </div>
         </div>
 
         <!-- Categories Bar -->
         <div class="category-bar">
             <button class="cat-btn @(selectedCategoryId == null ? "active" : "")" @onclick="() => FilterByCategory(null)">
-                All Categories
+                جميع التصنيفات
             </button>
             @foreach (var cat in categories)
             {
@@ -55,44 +55,60 @@
             {
                 <div style="grid-column: 1 / -1; text-align: center; padding: 2rem;">
                     <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--accent-blue);"></i>
-                    <p style="margin-top: 0.5rem; color: var(--text-secondary);">Loading catalog...</p>
+                    <p style="margin-top: 0.5rem; color: var(--text-secondary);">جاري تحميل الكتالوج...</p>
                 </div>
             }
             else if (!filteredProducts.Any())
             {
                 <div style="grid-column: 1 / -1; text-align: center; padding: 2rem; color: var(--text-secondary);">
                     <i class="fa-solid fa-box-open fa-2x"></i>
-                    <p style="margin-top: 0.5rem;">No products found</p>
+                    <p style="margin-top: 0.5rem;">لا توجد منتجات مطابقة</p>
                 </div>
             }
             else
             {
-                @foreach (var prod in filteredProducts)
+                @foreach (var prod in PagedProducts)
                 {
                     <div class="product-card" @onclick="() => AddToCart(prod)">
-                        <div>
-                            <div class="product-title">@prod.NameAr</div>
-                            <div class="product-stock">Stock: @prod.QuantityInStock.ToString("N0") @prod.UnitSymbol</div>
+                        <div class="product-card-img-container">
+                            @if (!string.IsNullOrWhiteSpace(prod.ImageUrl))
+                            {
+                                <img src="@ApiClient.GetImageFullUrl(prod.ImageUrl)" class="product-card-img" alt="@prod.NameAr" />
+                            }
+                            else
+                            {
+                                <div class="product-card-img-placeholder">
+                                    <i class="fa-solid fa-box"></i>
+                                </div>
+                            }
                         </div>
-                        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 0.5rem;">
-                            <span class="product-price">@prod.SellingPrice.ToString("N2") EGP</span>
-                            <i class="fa-solid fa-plus-circle" style="color: var(--accent-blue); font-size: 1.2rem;"></i>
+                        <div class="product-card-body">
+                            <div class="product-title" title="@prod.NameAr">@prod.NameAr</div>
+                            <div class="product-stock">المخزون: @prod.QuantityInStock.ToString("N0") @(prod.UnitSymbol ?? "قطع")</div>
+                        </div>
+                        <div class="product-card-footer">
+                            <span class="product-price">@prod.SellingPrice.ToString("N2") ج.م</span>
+                            <i class="fa-solid fa-plus-circle"></i>
                         </div>
                     </div>
                 }
             }
         </div>
+
+        <!-- Pagination Controls Bar -->
+        <Pagination CurrentPage="@currentPage" TotalItems="@filteredProducts.Count" PageSize="@pageSize" OnPageChanged="@(p => GoToPage(p))" />
     </div>
+
 
     <!-- Right Panel: Cart & Actions -->
     <div class="cart-panel">
         <div class="cart-header">
             <div>
-                <h3 style="font-size: 1.1rem; font-weight: 700;">Cart Order</h3>
-                <span style="font-size: 0.8rem; color: var(--text-secondary);">Customer: @Cart.CustomerName</span>
+                <h3 style="font-size: 1.1rem; font-weight: 700;">سلة المبيعات</h3>
+                <span style="font-size: 0.8rem; color: var(--text-secondary);">العميل: @(Cart.CustomerName == "Walk-in Customer" ? "عميل نقدي" : Cart.CustomerName)</span>
             </div>
             <button class="btn btn-amber" style="padding: 0.35rem 0.65rem; font-size: 0.8rem;" @onclick="OpenCustomerModal">
-                <i class="fa-solid fa-user"></i> Customer [F2]
+                <i class="fa-solid fa-user me-1"></i> العميل [F2]
             </button>
         </div>
 
@@ -100,9 +116,9 @@
         <div class="cart-items">
             @if (!Cart.Items.Any())
             {
-                <div style="text-align: center; margin-auto: auto; color: var(--text-secondary); padding: 3rem 0;">
+                <div style="text-align: center; margin: auto; color: var(--text-secondary); padding: 3rem 0;">
                     <i class="fa-solid fa-cart-shopping fa-3x" style="opacity: 0.3;"></i>
-                    <p style="margin-top: 0.5rem;">Cart is empty. Scan or select items.</p>
+                    <p style="margin-top: 0.5rem;">السلة فارغة. قم بمسح أو اختيار المنتجات.</p>
                 </div>
             }
             else
@@ -112,7 +128,7 @@
                     <div class="cart-item">
                         <div class="cart-item-info">
                             <div class="cart-item-name">@item.ProductName</div>
-                            <div class="cart-item-price">@item.UnitPrice.ToString("N2") x @item.Quantity = @item.LineTotal.ToString("N2") EGP</div>
+                            <div class="cart-item-price">@item.UnitPrice.ToString("N2") x @item.Quantity = @item.LineTotal.ToString("N2") ج.م</div>
                         </div>
 
                         <div class="qty-controls">
@@ -131,30 +147,30 @@
         <!-- Cart Totals Summary -->
         <div class="cart-summary">
             <div class="summary-row">
-                <span>Subtotal</span>
-                <span>@Cart.SubTotal.ToString("N2") EGP</span>
+                <span>المجموع الفرعي</span>
+                <span>@Cart.SubTotal.ToString("N2") ج.م</span>
             </div>
             <div class="summary-row" style="color: var(--accent-amber);">
-                <span>Discount</span>
-                <span>-@Cart.TotalDiscount.ToString("N2") EGP</span>
+                <span>إجمالي الخصم</span>
+                <span>-@Cart.TotalDiscount.ToString("N2") ج.م</span>
             </div>
             <div class="summary-row">
-                <span>Tax</span>
-                <span>+@Cart.TotalTax.ToString("N2") EGP</span>
+                <span>إجمالي الضريبة</span>
+                <span>+@Cart.TotalTax.ToString("N2") ج.م</span>
             </div>
             <div class="summary-row total">
-                <span>Total Amount</span>
-                <span>@Cart.GrandTotal.ToString("N2") EGP</span>
+                <span>الإجمالي الكلي</span>
+                <span>@Cart.GrandTotal.ToString("N2") ج.م</span>
             </div>
         </div>
 
         <!-- Action Buttons Grid -->
         <div class="pos-actions">
             <button class="btn btn-danger" @onclick="() => Cart.Clear()">
-                <i class="fa-solid fa-xmark"></i> Clear [Esc]
+                <i class="fa-solid fa-xmark me-1"></i> إلغاء الفاتورة [Esc]
             </button>
             <button class="btn btn-success" disabled="@(!Cart.Items.Any() || isProcessingSale)" @onclick="OpenPaymentModal">
-                <i class="fa-solid fa-money-bill-wave"></i> Checkout [F8]
+                <i class="fa-solid fa-money-bill-wave me-1"></i> إتمام الدفع [F8]
             </button>
         </div>
     </div>
@@ -163,57 +179,197 @@
 <!-- Checkout Payment Modal -->
 @if (showPaymentModal)
 {
-    <div class="modal-overlay">
-        <div class="modal-card">
+    <div class="modal-overlay" @onclick="ClosePaymentModal">
+        <div class="modal-card" style="width: 520px;" @onclick:stopPropagation="true">
             <div class="modal-header">
-                <h3 style="font-size: 1.2rem; font-weight: 700;">Checkout & Payment</h3>
-                <button style="background: none; border: none; color: white; font-size: 1.2rem; cursor: pointer;" @onclick="ClosePaymentModal">🗙</button>
+                <h3 class="modal-title">
+                    <i class="fa-solid fa-cash-register me-2" style="color: var(--accent-emerald);"></i>
+                    الدفع وإنهاء الفاتورة
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.35rem 0.65rem;" @onclick="ClosePaymentModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
             </div>
 
-            @if (!string.IsNullOrEmpty(saleError))
-            {
-                <div style="background-color: rgba(239,68,68,0.2); border: 1px solid var(--accent-red); color: #f87171; padding: 0.6rem; border-radius: 0.5rem; font-size: 0.85rem; margin-bottom: 1rem;">
-                    @saleError
-                </div>
-            }
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(saleError))
+                {
+                    <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem 1rem; border-radius: 0.5rem; margin-bottom: 1.25rem; font-size: 0.85rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @saleError
+                    </div>
+                }
 
-            <div style="display: flex; flex-direction: column; gap: 0.8rem; margin-bottom: 1.2rem;">
-                <div style="display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: bold; background: var(--bg-primary); padding: 0.75rem; border-radius: 0.5rem;">
-                    <span>Total Due:</span>
-                    <span style="color: var(--accent-green);">@Cart.GrandTotal.ToString("N2") EGP</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 1rem 1.25rem; border-radius: 0.75rem; border: 1px solid var(--border-color-light); margin-bottom: 1.25rem;">
+                    <span style="font-size: 1rem; font-weight: 600; color: var(--text-secondary);">المبلغ المطلوب:</span>
+                    <span style="font-size: 1.4rem; font-weight: 700; color: var(--accent-emerald);">@Cart.GrandTotal.ToString("N2") ج.م</span>
                 </div>
 
-                <div>
-                    <label style="font-size: 0.85rem; color: var(--text-secondary);">Payment Method</label>
-                    <select @bind="Cart.PaymentMethod" style="width: 100%; padding: 0.6rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white; margin-top: 0.3rem;">
-                        <option value="Cash">Cash</option>
-                        <option value="Visa">Visa / Card</option>
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label>طريقة الدفع</label>
+                    <select class="form-select" @bind="Cart.PaymentMethod">
+                        <option value="Cash">نقداً (كاش)</option>
+                        <option value="Visa">بطاقة ائتمان (فيزا / كارت)</option>
                     </select>
                 </div>
 
-                <div>
-                    <label style="font-size: 0.85rem; color: var(--text-secondary);">Paid Amount (EGP)</label>
-                    <input type="number" @bind="paidAmount" @bind:event="oninput" style="width: 100%; padding: 0.6rem; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 0.5rem; color: white; font-size: 1.1rem; font-weight: bold; margin-top: 0.3rem;" />
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label>المبلغ المدفوع (جنيه)</label>
+                    <input type="number" class="form-control" @bind="paidAmount" @bind:event="oninput" style="font-size: 1.15rem; font-weight: 700;" placeholder="0.00" />
                 </div>
 
-                <div style="display: flex; justify-content: space-between; font-weight: 600; color: var(--accent-amber);">
-                    <span>Change Due:</span>
-                    <span>@Math.Max(0, paidAmount - Cart.GrandTotal).ToString("N2") EGP</span>
+                <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.25); padding: 0.9rem 1.25rem; border-radius: 0.6rem; color: var(--accent-amber);">
+                    <span style="font-weight: 600; font-size: 0.95rem;">المبلغ المتبقي (الباقي):</span>
+                    <span style="font-size: 1.2rem; font-weight: 700;">@Math.Max(0, paidAmount - Cart.GrandTotal).ToString("N2") ج.م</span>
                 </div>
             </div>
 
-            <div style="display: flex; gap: 0.5rem;">
-                <button class="btn btn-danger" style="flex: 1;" @onclick="ClosePaymentModal">Cancel</button>
-                <button class="btn btn-success" style="flex: 2;" disabled="@isProcessingSale" @onclick="SubmitSale">
+            <div class="modal-footer">
+                <button class="btn btn-secondary" style="flex: 1;" @onclick="ClosePaymentModal">إلغاء</button>
+                <button class="btn btn-success" style="flex: 2; padding: 0.75rem;" disabled="@isProcessingSale" @onclick="SubmitSale">
                     @if (isProcessingSale)
                     {
-                        <i class="fa-solid fa-spinner fa-spin"></i> <span>Processing...</span>
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الحفظ...</span>
                     }
                     else
                     {
-                        <i class="fa-solid fa-check-circle"></i> <span>Complete Sale & Print</span>
+                        <i class="fa-solid fa-check-circle me-1"></i> <span>تأكيد الدفع وطباعة الفاتورة</span>
                     }
                 </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Customer Selection Modal -->
+@if (showCustomerModal)
+{
+    <div class="modal-overlay" @onclick="CloseCustomerModal">
+        <div class="modal-card" style="width: 580px;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fa-solid fa-user-tag me-2" style="color: var(--accent-amber);"></i>
+                    اختيار أو إضافة عميل
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseCustomerModal">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                @if (!string.IsNullOrEmpty(customerError))
+                {
+                    <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @customerError
+                    </div>
+                }
+
+                <!-- Toggle: Select Existing / Add New -->
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1.25rem;">
+                    <button class="btn @(customerTab == "select" ? "btn-primary" : "btn-secondary")" style="flex: 1;" @onclick='() => customerTab = "select"'>
+                        <i class="fa-solid fa-search me-1"></i> اختيار عميل موجود
+                    </button>
+                    <button class="btn @(customerTab == "new" ? "btn-primary" : "btn-secondary")" style="flex: 1;" @onclick='() => customerTab = "new"'>
+                        <i class="fa-solid fa-user-plus me-1"></i> عميل جديد
+                    </button>
+                </div>
+
+                @if (customerTab == "select")
+                {
+                    <!-- Search Existing Customers -->
+                    <div class="search-box" style="margin-bottom: 1rem;">
+                        <i class="fa-solid fa-search"></i>
+                        <input @bind="customerSearchQuery" @bind:event="oninput" @onkeyup="FilterCustomers" placeholder="ابحث بالاسم أو رقم الهاتف..." />
+                    </div>
+
+                    <!-- Walk-in Customer Option -->
+                    <div style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border: 1px solid var(--border-color-light); background: @(Cart.CustomerId == null ? "rgba(99, 102, 241, 0.1)" : "var(--bg-card)");"
+                         @onclick="SelectWalkInCustomer">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--accent-amber); display: flex; align-items: center; justify-content: center; color: white; font-size: 0.85rem;">
+                                <i class="fa-solid fa-walking"></i>
+                            </div>
+                            <div>
+                                <div style="font-weight: 700; font-size: 0.9rem;">عميل نقدي (Walk-in)</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary);">بدون تسجيل بيانات عميل</div>
+                            </div>
+                        </div>
+                        @if (Cart.CustomerId == null)
+                        {
+                            <i class="fa-solid fa-check-circle" style="color: var(--accent-indigo); font-size: 1.1rem;"></i>
+                        }
+                    </div>
+
+                    <!-- Customer List -->
+                    <div style="max-height: 250px; overflow-y: auto;">
+                        @foreach (var cust in filteredCustomers)
+                        {
+                            <div style="cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; border-radius: 0.5rem; margin-bottom: 0.5rem; border: 1px solid var(--border-color-light); background: @(Cart.CustomerId == cust.Id ? "rgba(99, 102, 241, 0.1)" : "var(--bg-card)"); transition: all 0.15s ease;"
+                                 @onclick="() => SelectCustomer(cust)">
+                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                    <div style="width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-indigo), #4f46e5); display: flex; align-items: center; justify-content: center; color: white; font-size: 0.85rem; font-weight: 700;">
+                                        @cust.Name.Substring(0, 1)
+                                    </div>
+                                    <div>
+                                        <div style="font-weight: 700; font-size: 0.9rem;">@cust.Name</div>
+                                        <div style="font-size: 0.78rem; color: var(--text-secondary);">
+                                            <i class="fa-solid fa-phone" style="font-size: 0.7rem;"></i> @cust.Phone
+                                        </div>
+                                    </div>
+                                </div>
+                                @if (Cart.CustomerId == cust.Id)
+                                {
+                                    <i class="fa-solid fa-check-circle" style="color: var(--accent-indigo); font-size: 1.1rem;"></i>
+                                }
+                            </div>
+                        }
+
+                        @if (!filteredCustomers.Any())
+                        {
+                            <div style="text-align: center; padding: 1.5rem; color: var(--text-muted);">
+                                <i class="fa-solid fa-user-slash" style="font-size: 1.5rem; margin-bottom: 0.5rem; display: block;"></i>
+                                لا يوجد عملاء مطابقين. يمكنك إضافة عميل جديد.
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <!-- Add New Customer Form -->
+                    <div class="form-group">
+                        <label>اسم العميل <span style="color: var(--accent-red);">*</span></label>
+                        <input class="form-control" @bind="newCustomerName" placeholder="مثال: أحمد محمد" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>رقم الهاتف <span style="color: var(--accent-red);">*</span></label>
+                        <input class="form-control" @bind="newCustomerPhone" placeholder="مثال: 01012345678" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>البريد الإلكتروني</label>
+                        <input class="form-control" @bind="newCustomerEmail" placeholder="email@example.com" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>العنوان</label>
+                        <input class="form-control" @bind="newCustomerAddress" placeholder="العنوان (اختياري)" />
+                    </div>
+
+                    <button class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;" disabled="@isSavingCustomer" @onclick="SaveNewCustomer">
+                        @if (isSavingCustomer)
+                        {
+                            <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الحفظ...</span>
+                        }
+                        else
+                        {
+                            <i class="fa-solid fa-user-plus me-1"></i> <span>حفظ وربط العميل بالفاتورة</span>
+                        }
+                    </button>
+                }
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseCustomerModal">إغلاق</button>
             </div>
         </div>
     </div>
@@ -229,6 +385,22 @@
     private List<CategoryDto> categories = new();
     private Guid? selectedCategoryId;
 
+    private int currentPage = 1;
+    private const int pageSize = 6;
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling((double)filteredProducts.Count / pageSize));
+
+    private IEnumerable<ProductDto> PagedProducts =>
+        filteredProducts.Skip((currentPage - 1) * pageSize).Take(pageSize);
+
+    private void GoToPage(int page)
+    {
+        if (page >= 1 && page <= TotalPages)
+        {
+            currentPage = page;
+        }
+    }
+
     private bool isLoadingProducts = true;
     private bool showPaymentModal = false;
     private bool isProcessingSale = false;
@@ -238,6 +410,14 @@
     protected override async Task OnInitializedAsync()
     {
         Cart.OnCartChanged += StateHasChanged;
+        if (AuthState.UserId != Guid.Empty && !Shift.IsShiftOpen)
+        {
+            var activeShift = await ApiClient.GetCurrentShiftAsync(AuthState.UserId);
+            if (activeShift != null && activeShift.Status == "Open")
+            {
+                Shift.SetActiveShift(activeShift.Id, activeShift.OpenedAt, activeShift.OpeningCash);
+            }
+        }
         await LoadCatalogAsync();
     }
 
@@ -249,6 +429,7 @@
             products = await ApiClient.GetProductsAsync();
             categories = await ApiClient.GetCategoriesAsync();
             filteredProducts = products;
+            currentPage = 1;
         }
         catch (Exception ex)
         {
@@ -267,7 +448,6 @@
             var code = scannedBarcode.Trim();
             scannedBarcode = string.Empty;
 
-            // Direct Barcode Lookup via Backend Endpoint
             var prod = await ApiClient.GetProductByBarcodeAsync(code);
             if (prod is not null)
             {
@@ -275,7 +455,7 @@
             }
             else
             {
-                saleError = $"Product with barcode '{code}' not found.";
+                saleError = $"المنتج بالباركود '{code}' غير موجود.";
             }
         }
     }
@@ -296,6 +476,7 @@
         {
             filteredProducts = products.Where(p => p.NameAr.Contains(searchTerm, StringComparison.OrdinalIgnoreCase) || p.Barcode.Contains(searchTerm)).ToList();
         }
+        currentPage = 1;
     }
 
     private void FilterByCategory(Guid? catId)
@@ -307,6 +488,7 @@
     private void OpenPaymentModal()
     {
         paidAmount = Cart.GrandTotal;
+        saleError = null;
         showPaymentModal = true;
     }
 
@@ -316,7 +498,13 @@
     {
         if (!Shift.IsShiftOpen)
         {
-            saleError = "Cannot complete sale: No open shift. Please open a shift first.";
+            saleError = "لا يمكن إتمام البيع: لا توجد وردية مفتوحة حالياً. الرجاء فتح وردية أولاً من صفحة الورديات.";
+            return;
+        }
+
+        if (paidAmount + 0.01m < Cart.GrandTotal && !Cart.PaymentMethod.Equals("Credit", StringComparison.OrdinalIgnoreCase))
+        {
+            saleError = $"المبلغ المدفوع ({paidAmount:N2} ج.م) أقل من إجمالي الفاتورة المطلوب ({Cart.GrandTotal:N2} ج.m).";
             return;
         }
 
@@ -325,38 +513,41 @@
 
         try
         {
+            var saleItems = Cart.Items.Select(i => new CreateSaleItemRequest(
+                i.ProductId,
+                i.Quantity,
+                i.UnitPrice,
+                i.Discount,
+                i.LineTax)).ToList();
+
             var cmd = new CreateSaleCommand(
                 CashierId: AuthState.UserId,
-                CustomerId: Cart.CustomerId,
                 ShiftId: Shift.ShiftId,
-                SubTotal: Cart.SubTotal,
+                Items: saleItems,
+                CustomerId: Cart.CustomerId,
                 DiscountAmount: Cart.TotalDiscount,
                 TaxAmount: Cart.TotalTax,
-                TotalAmount: Cart.GrandTotal,
                 PaidAmount: paidAmount,
-                ChangeAmount: Math.Max(0, paidAmount - Cart.GrandTotal),
                 PaymentMethod: Cart.PaymentMethod,
-                Notes: "POS Desktop Sale",
-                Items: Cart.Items.Select(i => new CreateSaleItemCommand(i.ProductId, i.Quantity, i.UnitPrice, i.Discount, i.LineTax)).ToList());
+                Notes: "POS Desktop Sale");
 
-            var saleId = await ApiClient.CreateSaleAsync(cmd);
+            var (saleId, error) = await ApiClient.CreateSaleAsync(cmd);
             if (saleId.HasValue)
             {
                 var createdId = saleId.Value;
                 Cart.Clear();
                 ClosePaymentModal();
 
-                // Trigger QuestPDF Receipt Print Flow
                 await Printer.PrintInvoiceAsync(createdId);
             }
             else
             {
-                saleError = "Failed to create sale. Please check backend validation rules.";
+                saleError = !string.IsNullOrEmpty(error) ? error : "فشل إنشاء عملية البيع. الرجاء مراجعة الوردية الحالية.";
             }
         }
         catch (Exception ex)
         {
-            saleError = $"Sale error: {ex.Message}";
+            saleError = $"خطأ في عملية البيع: {ex.Message}";
         }
         finally
         {
@@ -364,11 +555,107 @@
         }
     }
 
-    private void OpenCustomerModal() { /* Customer modal implementation */ }
+    // Customer Modal State
+    private bool showCustomerModal = false;
+    private string customerTab = "select";
+    private List<CustomerDto> allCustomers = new();
+    private List<CustomerDto> filteredCustomers = new();
+    private string customerSearchQuery = string.Empty;
+    private string customerError = string.Empty;
+    private bool isSavingCustomer = false;
+
+    private string newCustomerName = string.Empty;
+    private string newCustomerPhone = string.Empty;
+    private string? newCustomerEmail;
+    private string? newCustomerAddress;
+
+    private async Task OpenCustomerModal()
+    {
+        customerError = string.Empty;
+        customerTab = "select";
+        customerSearchQuery = string.Empty;
+        newCustomerName = string.Empty;
+        newCustomerPhone = string.Empty;
+        newCustomerEmail = null;
+        newCustomerAddress = null;
+        allCustomers = await ApiClient.GetCustomersAsync();
+        filteredCustomers = allCustomers.ToList();
+        showCustomerModal = true;
+    }
+
+    private void CloseCustomerModal() => showCustomerModal = false;
+
+    private void FilterCustomers()
+    {
+        if (string.IsNullOrWhiteSpace(customerSearchQuery))
+        {
+            filteredCustomers = allCustomers.ToList();
+        }
+        else
+        {
+            filteredCustomers = allCustomers.Where(c =>
+                c.Name.Contains(customerSearchQuery, StringComparison.OrdinalIgnoreCase) ||
+                c.Phone.Contains(customerSearchQuery)).ToList();
+        }
+    }
+
+    private void SelectCustomer(CustomerDto cust)
+    {
+        Cart.CustomerId = cust.Id;
+        Cart.CustomerName = cust.Name;
+        CloseCustomerModal();
+    }
+
+    private void SelectWalkInCustomer()
+    {
+        Cart.CustomerId = null;
+        Cart.CustomerName = "Walk-in Customer";
+        CloseCustomerModal();
+    }
+
+    private async Task SaveNewCustomer()
+    {
+        if (string.IsNullOrWhiteSpace(newCustomerName))
+        {
+            customerError = "الرجاء إدخال اسم العميل.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(newCustomerPhone))
+        {
+            customerError = "الرجاء إدخال رقم هاتف العميل.";
+            return;
+        }
+
+        isSavingCustomer = true;
+        customerError = string.Empty;
+
+        var req = new CreateCustomerRequest(newCustomerName, newCustomerPhone, newCustomerEmail, newCustomerAddress);
+        var (id, error) = await ApiClient.CreateCustomerAsync(req);
+        isSavingCustomer = false;
+
+        if (id.HasValue)
+        {
+            Cart.CustomerId = id.Value;
+            Cart.CustomerName = newCustomerName;
+            CloseCustomerModal();
+        }
+        else
+        {
+            customerError = !string.IsNullOrEmpty(error) ? error : "فشل إضافة العميل.";
+        }
+    }
 
     private void HandleGlobalKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "F8" && Cart.Items.Any()) OpenPaymentModal();
+        if (e.Key == "F2") _ = OpenCustomerModal();
         if (e.Key == "Escape") Cart.Clear();
+    }
+
+    private string GetImageFullUrl(string? relativeOrUrl)
+    {
+        if (string.IsNullOrWhiteSpace(relativeOrUrl)) return string.Empty;
+        if (relativeOrUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || relativeOrUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return relativeOrUrl;
+        return $"http://localhost:5000/{relativeOrUrl.TrimStart('/')}";
     }
 }

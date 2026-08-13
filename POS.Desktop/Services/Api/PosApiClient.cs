@@ -12,18 +12,44 @@ namespace POS.Desktop.Services.Api
             _http = http;
         }
 
+        public string GetImageFullUrl(string? relativeOrUrl)
+        {
+            if (string.IsNullOrWhiteSpace(relativeOrUrl)) return string.Empty;
+            if (relativeOrUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || relativeOrUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                return relativeOrUrl;
+            }
+
+            var baseUri = _http.BaseAddress?.ToString() ?? "https://localhost:7198/";
+            return new Uri(new Uri(baseUri), relativeOrUrl.TrimStart('/')).ToString();
+        }
+
         // Auth
         public async Task<AuthResponse?> LoginAsync(LoginRequest request)
         {
-            var res = await _http.PostAsJsonAsync("api/auth/login", request);
-            return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<AuthResponse>() : null;
+            try
+            {
+                var res = await _http.PostAsJsonAsync("api/auth/login", request);
+                return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<AuthResponse>() : null;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         // Products
         public async Task<List<ProductDto>> GetProductsAsync(string? search = null)
         {
-            var url = string.IsNullOrWhiteSpace(search) ? "api/inventory/products" : $"api/inventory/products?searchTerm={search}";
-            return await _http.GetFromJsonAsync<List<ProductDto>>(url) ?? new();
+            try
+            {
+                var url = string.IsNullOrWhiteSpace(search) ? "api/inventory/products?pageSize=1000" : $"api/inventory/products?pageSize=1000&searchTerm={search}";
+                return await _http.GetFromJsonAsync<List<ProductDto>>(url) ?? new();
+            }
+            catch
+            {
+                return new();
+            }
         }
 
         public async Task<ProductDto?> GetProductByBarcodeAsync(string barcode)
@@ -38,44 +64,601 @@ namespace POS.Desktop.Services.Api
             }
         }
 
-        // Categories & Units
-        public async Task<List<CategoryDto>> GetCategoriesAsync() => await _http.GetFromJsonAsync<List<CategoryDto>>("api/inventory/categories") ?? new();
-        public async Task<List<UnitDto>> GetUnitsAsync() => await _http.GetFromJsonAsync<List<UnitDto>>("api/inventory/units") ?? new();
-
-        // Customers & Suppliers
-        public async Task<List<CustomerDto>> GetCustomersAsync() => await _http.GetFromJsonAsync<List<CustomerDto>>("api/sales/customers") ?? new();
-        public async Task<List<SupplierDto>> GetSuppliersAsync() => await _http.GetFromJsonAsync<List<SupplierDto>>("api/purchases/suppliers") ?? new();
-
-        // Sales & Shifts
-        public async Task<Guid?> CreateSaleAsync(CreateSaleCommand command)
+        public async Task<OnlineProductLookupResult?> LookupProductOnlineAsync(string barcode)
         {
-            var res = await _http.PostAsJsonAsync("api/sales", command);
-            return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<Guid>() : null;
-        }
-
-        public async Task<Guid?> OpenShiftAsync(OpenShiftCommand command)
-        {
-            var res = await _http.PostAsJsonAsync("api/shifts/open", command);
-            return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<Guid>() : null;
-        }
-
-        public async Task<bool> CloseShiftAsync(CloseShiftCommand command)
-        {
-            var res = await _http.PostAsJsonAsync($"api/shifts/{command.ShiftId}/close", command);
-            return res.IsSuccessStatusCode;
-        }
-
-        // Dashboard
-        public async Task<DashboardDataDto?> GetDashboardAsync()
-        {
+            if (string.IsNullOrWhiteSpace(barcode)) return null;
             try
             {
-                return await _http.GetFromJsonAsync<DashboardDataDto>("api/dashboard");
+                using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                client.DefaultRequestHeaders.Add("User-Agent", "CashierSystemPOS - WindowsDesktop - 1.0");
+                var url = $"https://world.openfoodfacts.org/api/v2/product/{barcode.Trim()}.json";
+                var response = await client.GetAsync(url);
+                if (!response.IsSuccessStatusCode) return null;
+
+                using var doc = await System.Text.Json.JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync());
+                var root = doc.RootElement;
+                if (!root.TryGetProperty("status", out var statusProp) || statusProp.GetInt32() != 1) return null;
+
+                if (!root.TryGetProperty("product", out var product)) return null;
+
+                string? nameAr = null;
+                string? nameEn = null;
+                string? imageUrl = null;
+
+                if (product.TryGetProperty("product_name_ar", out var nameArProp) && !string.IsNullOrWhiteSpace(nameArProp.GetString()))
+                    nameAr = nameArProp.GetString();
+
+                if (product.TryGetProperty("product_name", out var nameProp) && !string.IsNullOrWhiteSpace(nameProp.GetString()))
+                {
+                    if (string.IsNullOrWhiteSpace(nameAr)) nameAr = nameProp.GetString();
+                    nameEn = nameProp.GetString();
+                }
+
+                if (product.TryGetProperty("product_name_en", out var nameEnProp) && !string.IsNullOrWhiteSpace(nameEnProp.GetString()))
+                    nameEn = nameEnProp.GetString();
+
+                if (product.TryGetProperty("image_front_url", out var imgFront) && !string.IsNullOrWhiteSpace(imgFront.GetString()))
+                    imageUrl = imgFront.GetString();
+                else if (product.TryGetProperty("image_url", out var imgUrl) && !string.IsNullOrWhiteSpace(imgUrl.GetString()))
+                    imageUrl = imgUrl.GetString();
+
+                byte[]? imgBytes = null;
+                if (!string.IsNullOrWhiteSpace(imageUrl))
+                {
+                    try
+                    {
+                        imgBytes = await client.GetByteArrayAsync(imageUrl);
+                    }
+                    catch { }
+                }
+
+                return new OnlineProductLookupResult(barcode, nameAr ?? "منتج مجلوب بالباركود", nameEn ?? nameAr ?? "Scanned Product", imageUrl, imgBytes);
             }
             catch
             {
                 return null;
             }
         }
+
+
+        public async Task<(Guid? ProductId, string? Error)> CreateProductAsync(CreateProductFormModel model, byte[]? imageBytes = null, string? fileName = null)
+        {
+            try
+            {
+                using var content = new MultipartFormDataContent();
+                content.Add(new StringContent(model.Barcode ?? ""), nameof(model.Barcode));
+                content.Add(new StringContent(model.NameAr ?? ""), nameof(model.NameAr));
+                content.Add(new StringContent(model.NameEn ?? ""), nameof(model.NameEn));
+                if (!string.IsNullOrWhiteSpace(model.Description))
+                    content.Add(new StringContent(model.Description), nameof(model.Description));
+
+                content.Add(new StringContent(model.CategoryId.ToString()), nameof(model.CategoryId));
+                content.Add(new StringContent(model.UnitId.ToString()), nameof(model.UnitId));
+                if (model.SupplierId.HasValue && model.SupplierId.Value != Guid.Empty)
+                    content.Add(new StringContent(model.SupplierId.Value.ToString()), nameof(model.SupplierId));
+
+                content.Add(new StringContent(model.PurchasePrice.ToString(System.Globalization.CultureInfo.InvariantCulture)), nameof(model.PurchasePrice));
+                content.Add(new StringContent(model.SellingPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)), nameof(model.SellingPrice));
+                content.Add(new StringContent(model.WholesalePrice.ToString(System.Globalization.CultureInfo.InvariantCulture)), nameof(model.WholesalePrice));
+                content.Add(new StringContent(model.InitialStock.ToString(System.Globalization.CultureInfo.InvariantCulture)), nameof(model.InitialStock));
+                content.Add(new StringContent(model.ReorderLevel.ToString(System.Globalization.CultureInfo.InvariantCulture)), nameof(model.ReorderLevel));
+                content.Add(new StringContent(model.MaxStockLevel.ToString(System.Globalization.CultureInfo.InvariantCulture)), nameof(model.MaxStockLevel));
+                content.Add(new StringContent(model.TaxRate.ToString(System.Globalization.CultureInfo.InvariantCulture)), nameof(model.TaxRate));
+
+                content.Add(new StringContent(model.IsWeighable.ToString()), nameof(model.IsWeighable));
+                content.Add(new StringContent(model.IsActive.ToString()), nameof(model.IsActive));
+                content.Add(new StringContent(model.TrackExpiry.ToString()), nameof(model.TrackExpiry));
+
+                if (imageBytes != null && imageBytes.Length > 0)
+                {
+                    var fileContent = new ByteArrayContent(imageBytes);
+                    fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("image/jpeg");
+                    content.Add(fileContent, "ImageFile", fileName ?? "product.jpg");
+                }
+
+                var res = await _http.PostAsync("api/inventory/products", content);
+                if (res.IsSuccessStatusCode)
+                {
+                    var id = await res.Content.ReadFromJsonAsync<Guid>();
+                    return (id, null);
+                }
+
+                if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized || res.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    return (null, "Access denied. Admin authorization required.");
+                }
+
+                var errContent = await res.Content.ReadAsStringAsync();
+                return (null, ExtractErrorMessage(errContent, "Failed to save product. Please check inputs or system logs."));
+            }
+            catch (Exception ex)
+            {
+                return (null, ex.Message);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> UpdateProductAsync(UpdateProductCommandModel model)
+        {
+            try
+            {
+                var res = await _http.PutAsJsonAsync($"api/inventory/products/{model.Id}", model);
+                if (res.IsSuccessStatusCode) return (true, null);
+
+                if (res.StatusCode == System.Net.HttpStatusCode.Unauthorized || res.StatusCode == System.Net.HttpStatusCode.Forbidden)
+                {
+                    return (false, "Access denied. Admin authorization required.");
+                }
+
+                var errContent = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(errContent, "Failed to update product."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        public async Task<bool> DeleteProductAsync(Guid id)
+        {
+            try
+            {
+                var res = await _http.DeleteAsync($"api/inventory/products/{id}");
+                return res.IsSuccessStatusCode;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Categories & Units
+        public async Task<List<CategoryDto>> GetCategoriesAsync()
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<List<CategoryDto>>("api/inventory/categories") ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        public async Task<Guid?> CreateCategoryAsync(CreateCategoryRequest request)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync("api/inventory/categories", request);
+                return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<Guid>() : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public async Task<bool> UpdateCategoryAsync(UpdateCategoryRequest request)
+        {
+            try
+            {
+                var res = await _http.PutAsJsonAsync($"api/inventory/categories/{request.Id}", request);
+                return res.IsSuccessStatusCode;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<bool> DeleteCategoryAsync(Guid id)
+        {
+            try
+            {
+                var res = await _http.DeleteAsync($"api/inventory/categories/{id}");
+                return res.IsSuccessStatusCode;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<List<UnitDto>> GetUnitsAsync()
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<List<UnitDto>>("api/inventory/units") ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        // Customers & Suppliers
+        public async Task<List<CustomerDto>> GetCustomersAsync()
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<List<CustomerDto>>("api/customers") ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        public async Task<(Guid? Id, string? Error)> CreateCustomerAsync(CreateCustomerRequest req)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync("api/customers", req);
+                if (res.IsSuccessStatusCode)
+                {
+                    var id = await res.Content.ReadFromJsonAsync<Guid>();
+                    return (id, null);
+                }
+                var err = await res.Content.ReadAsStringAsync();
+                return (null, ExtractErrorMessage(err, "فشل إضافة العميل."));
+            }
+            catch (Exception ex)
+            {
+                return (null, ex.Message);
+            }
+        }
+
+        public async Task<List<SupplierDto>> GetSuppliersAsync()
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<List<SupplierDto>>("api/suppliers") ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        // Sales & Shifts
+        public async Task<(Guid? SaleId, string? Error)> CreateSaleAsync(CreateSaleCommand command)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync("api/sales", command);
+                if (res.IsSuccessStatusCode)
+                {
+                    var id = await res.Content.ReadFromJsonAsync<Guid>();
+                    return (id, null);
+                }
+
+                var errContent = await res.Content.ReadAsStringAsync();
+                return (null, ExtractErrorMessage(errContent, "Failed to create sale. Please check cashier shift or backend validation rules."));
+            }
+            catch (Exception ex)
+            {
+                return (null, ex.Message);
+            }
+        }
+
+        public async Task<ShiftDto?> GetCurrentShiftAsync(Guid cashierId)
+        {
+            try
+            {
+                var res = await _http.GetAsync($"api/shifts/current/{cashierId}");
+                return res.IsSuccessStatusCode ? await res.Content.ReadFromJsonAsync<ShiftDto>() : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public async Task<List<ShiftDto>> GetShiftsAsync(DateTime? fromDate = null, DateTime? toDate = null, Guid? cashierId = null)
+        {
+            try
+            {
+                var queryParams = new List<string>();
+                if (fromDate.HasValue) queryParams.Add($"fromDate={fromDate.Value:yyyy-MM-ddTHH:mm:ss}");
+                if (toDate.HasValue) queryParams.Add($"toDate={toDate.Value:yyyy-MM-ddTHH:mm:ss}");
+                if (cashierId.HasValue && cashierId.Value != Guid.Empty) queryParams.Add($"cashierId={cashierId.Value}");
+
+                var url = "api/shifts";
+                if (queryParams.Any()) url += "?" + string.Join("&", queryParams);
+
+                return await _http.GetFromJsonAsync<List<ShiftDto>>(url) ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        public async Task<(Guid? ShiftId, string? Error)> OpenShiftAsync(OpenShiftCommand command)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync("api/shifts/open", command);
+                if (res.IsSuccessStatusCode)
+                {
+                    var id = await res.Content.ReadFromJsonAsync<Guid>();
+                    return (id, null);
+                }
+
+                var errContent = await res.Content.ReadAsStringAsync();
+                return (null, ExtractErrorMessage(errContent, "Failed to open shift. Cashier may already have an active open shift."));
+            }
+            catch (Exception ex)
+            {
+                return (null, ex.Message);
+            }
+        }
+
+        private static string ExtractErrorMessage(string errContent, string fallback)
+        {
+            if (string.IsNullOrWhiteSpace(errContent)) return fallback;
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(errContent);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("name", out var nameProp) && !string.IsNullOrWhiteSpace(nameProp.GetString()))
+                    return nameProp.GetString()!;
+
+                if (root.TryGetProperty("Name", out var namePascal) && !string.IsNullOrWhiteSpace(namePascal.GetString()))
+                    return namePascal.GetString()!;
+
+                if (root.TryGetProperty("message", out var msgProp) && !string.IsNullOrWhiteSpace(msgProp.GetString()))
+                    return msgProp.GetString()!;
+
+                if (root.TryGetProperty("Message", out var msgPascal) && !string.IsNullOrWhiteSpace(msgPascal.GetString()))
+                    return msgPascal.GetString()!;
+
+                if (root.TryGetProperty("code", out var codeProp) && !string.IsNullOrWhiteSpace(codeProp.GetString()))
+                    return codeProp.GetString()!;
+            }
+            catch
+            {
+            }
+            return fallback;
+        }
+
+        public async Task<bool> CloseShiftAsync(CloseShiftCommand command)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync($"api/shifts/{command.ShiftId}/close", command);
+                return res.IsSuccessStatusCode;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        // Dashboard
+        public async Task<DashboardDataDto?> GetDashboardAsync(DateTime? fromDate = null, DateTime? toDate = null)
+        {
+            try
+            {
+                var queryParams = new List<string>();
+                if (fromDate.HasValue) queryParams.Add($"fromDate={fromDate.Value:yyyy-MM-ddTHH:mm:ss}");
+                if (toDate.HasValue) queryParams.Add($"toDate={toDate.Value:yyyy-MM-ddTHH:mm:ss}");
+
+                var url = "api/dashboard";
+                if (queryParams.Any()) url += "?" + string.Join("&", queryParams);
+
+                return await _http.GetFromJsonAsync<DashboardDataDto>(url);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        // Sales History
+        public async Task<List<SaleDto>> GetSalesListAsync()
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<List<SaleDto>>("api/sales?pageSize=1000") ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        // Expenses
+        public async Task<List<ExpenseDto>> GetExpensesListAsync()
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<List<ExpenseDto>>("api/expenses?pageSize=1000") ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> CreateExpenseAsync(CreateExpenseRequest req)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync("api/expenses", req);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل إضافة المصروف."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        // Purchases & Suppliers
+        public async Task<List<PurchaseDto>> GetPurchasesListAsync()
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<List<PurchaseDto>>("api/purchases?pageSize=1000") ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> CreatePurchaseAsync(CreatePurchaseRequest req)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync("api/purchases", req);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل تسجيل فاتورة الشراء."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> CreateSupplierAsync(CreateSupplierRequest req)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync("api/suppliers", req);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل إضافة المورد."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        // Store Settings
+        public async Task<StoreSettingDto?> GetSettingsAsync()
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<StoreSettingDto>("api/settings");
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> UpdateSettingsAsync(UpdateStoreSettingRequest req)
+        {
+            try
+            {
+                var res = await _http.PutAsJsonAsync("api/settings", req);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل حفظ إعدادات المتجر."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        // Audit Logs
+        public async Task<List<AuditLogDto>> GetAuditLogsAsync(int page = 1, int pageSize = 50, string? entityName = null, string? action = null)
+        {
+            try
+            {
+                var queryParams = new List<string> { $"page={page}", $"pageSize={pageSize}" };
+                if (!string.IsNullOrWhiteSpace(entityName)) queryParams.Add($"entityName={Uri.EscapeDataString(entityName)}");
+                if (!string.IsNullOrWhiteSpace(action)) queryParams.Add($"action={Uri.EscapeDataString(action)}");
+
+                var url = "api/audit-logs?" + string.Join("&", queryParams);
+                return await _http.GetFromJsonAsync<List<AuditLogDto>>(url) ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        // Users & Roles Management
+        public async Task<List<UserManagementDto>> GetUsersAsync()
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<List<UserManagementDto>>("api/users") ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        public async Task<List<RoleItemDto>> GetRolesAsync()
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<List<RoleItemDto>>("api/roles") ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> CreateUserAsync(CreateUserRequestModel req)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync("api/users", req);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل إنشاء حساب المستخدم."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> UpdateUserRoleAsync(string userId, string role)
+        {
+            try
+            {
+                var res = await _http.PutAsJsonAsync($"api/users/{userId}/role", new UpdateUserRoleRequestModel(role));
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل تحديث صلاحية المستخدم."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> ToggleUserStatusAsync(string userId, bool activate)
+        {
+            try
+            {
+                var endpoint = activate ? $"api/users/{userId}/activate" : $"api/users/{userId}/deactivate";
+                var res = await _http.PutAsync(endpoint, null);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل تغيير حالة المستخدم."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
     }
+
+    public record UserManagementDto(string Id, string FullName, string UserName, string Email, string Phone, bool IsActive, DateTime CreatedAt, string Role);
+    public record RoleItemDto(string Id, string Name);
+    public record CreateUserRequestModel(string FullName, string UserName, string Email, string Password, string? Phone, string Role);
+    public record UpdateUserRoleRequestModel(string Role);
 }

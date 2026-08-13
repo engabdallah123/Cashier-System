@@ -1,65 +1,120 @@
+@implements IDisposable
+@using Microsoft.AspNetCore.Components.Authorization
 @inject CustomAuthStateProvider AuthState
+@inject StoreStateContainer StoreState
+@inject PosApiClient ApiClient
 
 <div class="sidebar">
     <div class="sidebar-header">
-        <i class="fa-solid fa-cash-register"></i>
-        <h1>POS System</h1>
+        <div class="sidebar-brand-icon">
+            <i class="fa-solid fa-store"></i>
+        </div>
+        <div>
+            <h1>@(string.IsNullOrWhiteSpace(StoreState.StoreName) ? "نظام الكاشير" : StoreState.StoreName)</h1>
+            <span>المبيعات والمخزون</span>
+        </div>
     </div>
 
     <ul class="nav-list">
         <li>
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <i class="fa-solid fa-cash-register"></i> POS Screen
+                <i class="fa-solid fa-cash-register"></i> <span>شاشة البيع (POS)</span>
             </NavLink>
         </li>
         <li>
             <NavLink class="nav-link" href="shifts">
-                <i class="fa-solid fa-clock-rotate-left"></i> Shifts
+                <i class="fa-solid fa-clock-rotate-left"></i> <span>الورديات</span>
             </NavLink>
         </li>
         <li>
             <NavLink class="nav-link" href="products">
-                <i class="fa-solid fa-boxes-stacked"></i> Products
+                <i class="fa-solid fa-boxes-stacked"></i> <span>المنتجات</span>
             </NavLink>
         </li>
         <li>
             <NavLink class="nav-link" href="categories">
-                <i class="fa-solid fa-tags"></i> Categories
+                <i class="fa-solid fa-tags"></i> <span>التصنيفات</span>
             </NavLink>
         </li>
         <li>
             <NavLink class="nav-link" href="purchases">
-                <i class="fa-solid fa-truck-ramp-box"></i> Purchases
+                <i class="fa-solid fa-truck-ramp-box"></i> <span>المشتريات</span>
             </NavLink>
         </li>
         <li>
             <NavLink class="nav-link" href="sales">
-                <i class="fa-solid fa-receipt"></i> Sales History
+                <i class="fa-solid fa-receipt"></i> <span>سجل المبيعات</span>
             </NavLink>
         </li>
         <li>
             <NavLink class="nav-link" href="expenses">
-                <i class="fa-solid fa-wallet"></i> Expenses
+                <i class="fa-solid fa-wallet"></i> <span>المصروفات</span>
             </NavLink>
         </li>
 
-        @if (AuthState.UserRole == "Admin" || AuthState.UserRole == "Manager")
+        @if (IsAdminOrManager)
         {
+            <li style="margin: 1.1rem 0.75rem 0.85rem 0.75rem; border-top: 1px dashed rgba(255, 255, 255, 0.2); position: relative; list-style: none;">
+                <span style="position: absolute; top: -0.65rem; right: 0.5rem; background: var(--bg-secondary, #1e1b4b); padding: 0 0.4rem; font-size: 0.68rem; color: var(--accent-indigo, #818cf8); font-weight: 700; border-radius: 0.25rem;">
+                    <i class="fa-solid fa-user-shield me-1"></i> الإدارة والتحكم
+                </span>
+            </li>
             <li>
                 <NavLink class="nav-link" href="dashboard">
-                    <i class="fa-solid fa-chart-line"></i> Dashboard
+                    <i class="fa-solid fa-chart-line"></i> <span>لوحة التحكم</span>
                 </NavLink>
             </li>
             <li>
                 <NavLink class="nav-link" href="users">
-                    <i class="fa-solid fa-users"></i> Users & Roles
+                    <i class="fa-solid fa-users"></i> <span>المستخدمين والصلاحيات</span>
                 </NavLink>
             </li>
             <li>
                 <NavLink class="nav-link" href="settings">
-                    <i class="fa-solid fa-gear"></i> Settings
+                    <i class="fa-solid fa-gear"></i> <span>الإعدادات</span>
+                </NavLink>
+            </li>
+            <li>
+                <NavLink class="nav-link" href="audit">
+                    <i class="fa-solid fa-clock-rotate-left"></i> <span>سجل الأحداث (Audit)</span>
                 </NavLink>
             </li>
         }
     </ul>
 </div>
+
+@code {
+    private bool IsAdminOrManager =>
+        string.Equals(AuthState.UserRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(AuthState.UserRole, "Manager", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(AuthState.UserRole, "Administrator", StringComparison.OrdinalIgnoreCase);
+
+    protected override async Task OnInitializedAsync()
+    {
+        AuthState.AuthenticationStateChanged += OnAuthenticationStateChanged;
+        StoreState.OnStateChanged += OnStoreStateChanged;
+
+        if (!StoreState.IsLoaded)
+        {
+            await StoreState.LoadSettingsAsync(ApiClient);
+        }
+    }
+
+    private async void OnAuthenticationStateChanged(Task<AuthenticationState> task)
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void OnStoreStateChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        AuthState.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+        StoreState.OnStateChanged -= OnStoreStateChanged;
+    }
+}
+
+

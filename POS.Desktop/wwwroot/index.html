@@ -1,10 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl" data-theme="dark">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <title>Supermarket POS Cashier System</title>
+    <title>نظام الكاشير والمبيعات للسيبرماركت</title>
     <base href="/" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/app.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 </head>
@@ -13,19 +16,39 @@
     <div id="app">
         <div class="splash-screen">
             <div class="spinner"></div>
-            <h2>POS Supermarket Cashier System</h2>
-            <p>Loading application...</p>
+            <h2>نظام إدارة السوبرماركت والكاشير</h2>
+            <p>جاري تحميل التطبيق...</p>
         </div>
     </div>
 
     <div id="blazor-error-ui">
-        An unhandled error has occurred.
-        <a href="" class="reload">Reload</a>
+        حدث خطأ غير متوقع.
+        <a href="" class="reload">إعادة تحميل</a>
         <a class="dismiss">🗙</a>
     </div>
 
     <script src="_framework/blazor.webview.js"></script>
     <script>
+        window.setAppTheme = function (theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            try { localStorage.setItem('pos_theme', theme); } catch (e) {}
+        };
+
+        window.getAppTheme = function () {
+            try {
+                return localStorage.getItem('pos_theme') || 'dark';
+            } catch (e) {
+                return 'dark';
+            }
+        };
+
+        (function () {
+            const savedTheme = window.getAppTheme();
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            document.documentElement.setAttribute('dir', 'rtl');
+            document.documentElement.setAttribute('lang', 'ar');
+        })();
+
         window.printPdfFromBase64 = function (base64String) {
             const blob = base64ToBlob(base64String, 'application/pdf');
             const url = URL.createObjectURL(blob);

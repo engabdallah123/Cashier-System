@@ -5,6 +5,7 @@ using Expenses.Application;
 using Expenses.Infrastructre;
 using Identity.Application;
 using Identity.Infrastructre;
+using Identity.Infrastructre.Database;
 using Inventory.Application;
 using Inventory.Infrastructre;
 using POS.Shared.Application;
@@ -18,6 +19,7 @@ using Sales.Application;
 using Sales.Infrastructre;
 using Settings.Application;
 using Settings.Infrastructre;
+using Settings.Infrastructre.Database;
 using Shifts.Application;
 using Shifts.Infrastructre;
 
@@ -94,8 +96,9 @@ namespace POS.WebAPI
 
             var app = builder.Build();
 
-            // Seed Identity Data (Roles & Default Accounts: admin/Admin123!, cashier/Cashier123!)
+            // Seed Initial Data
             await IdentityDataSeeder.SeedAsync(app.Services);
+            await SettingsDataSeeder.SeedAsync(app.Services);
 
             // Enable Swagger UI
             app.UseSwagger();
@@ -106,6 +109,7 @@ namespace POS.WebAPI
             });
 
             app.UseHttpsRedirection();
+            app.UseStaticFiles();
             app.UseCors("AllowAll");
             app.UseCustomExceptionHandler();
             app.UseAuthentication();

@@ -9,7 +9,7 @@ namespace Inventory.Application.Catalog.Products.Queries
         Guid CategoryId,
         string? CategoryName,
         Guid UnitId,
-        string? UnitName,
+        string? UnitSymbol,
         Guid? SupplierId,
         string? SupplierName,
         decimal PurchasePrice,

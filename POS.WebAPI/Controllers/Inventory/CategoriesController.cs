@@ -3,6 +3,7 @@ using Inventory.Application.Catalog.Categories.Commands.DeleteCategory;
 using Inventory.Application.Catalog.Categories.Commands.UpdateCategory;
 using Inventory.Application.Catalog.Categories.Queries.GetCategories;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace POS.WebAPI.Controllers.Inventory
@@ -19,6 +20,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpPost]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Create([FromBody] CreateCategoryCommand command, CancellationToken ct)
         {
             var result = await _sender.Send(command, ct);
@@ -29,6 +31,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpPut("{id:guid}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateCategoryCommand command, CancellationToken ct)
         {
             if (id != command.Id)
@@ -42,6 +45,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpDelete("{id:guid}")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
         {
             var result = await _sender.Send(new DeleteCategoryCommand(id), ct);

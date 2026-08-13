@@ -11,25 +11,27 @@ namespace Sales.Application.Sales.Queries
         decimal Tax,
         decimal Total);
 
-    public sealed record SaleResponse(
-        Guid Id,
-        string InvoiceNumber,
-        DateTime SaleDate,
-        Guid CashierId,
-        string? CashierName,
-        Guid? CustomerId,
-        string? CustomerName,
-        Guid ShiftId,
-        decimal SubTotal,
-        decimal DiscountAmount,
-        decimal TaxAmount,
-        decimal TotalAmount,
-        decimal PaidAmount,
-        decimal ChangeAmount,
-        string PaymentMethod,
-        string Status,
-        string? Notes,
-        IReadOnlyList<SaleItemResponse> Items);
+    public sealed class SaleResponse
+    {
+        public Guid Id { get; set; }
+        public string InvoiceNumber { get; set; } = string.Empty;
+        public DateTime SaleDate { get; set; }
+        public Guid CashierId { get; set; }
+        public string? CashierName { get; set; }
+        public Guid? CustomerId { get; set; }
+        public string? CustomerName { get; set; }
+        public Guid ShiftId { get; set; }
+        public decimal SubTotal { get; set; }
+        public decimal DiscountAmount { get; set; }
+        public decimal TaxAmount { get; set; }
+        public decimal TotalAmount { get; set; }
+        public decimal PaidAmount { get; set; }
+        public decimal ChangeAmount { get; set; }
+        public string PaymentMethod { get; set; } = "Cash";
+        public string Status { get; set; } = "Completed";
+        public string? Notes { get; set; }
+        public IReadOnlyList<SaleItemResponse> Items { get; set; } = Array.Empty<SaleItemResponse>();
+    }
 
     public sealed record ReceiptResponse(
         string StoreName,
