@@ -699,18 +699,19 @@ body {
 
 .products-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
     gap: 1rem;
     overflow-y: auto;
-    padding-left: 0.25rem;
+    padding: 0.5rem 0.5rem 1.5rem 0.5rem;
     flex: 1;
+    align-content: start;
 }
 
 .product-card {
     background-color: var(--bg-card);
     border: 1px solid var(--border-color-light);
     border-radius: 0.85rem;
-    padding: 0.65rem 0.75rem;
+    padding: 0.75rem 0.75rem 0.85rem 0.75rem;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -719,6 +720,9 @@ body {
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
     overflow: hidden;
+    height: 100%;
+    min-height: 195px;
+    box-sizing: border-box;
 }
 
 .product-card:hover {
@@ -735,6 +739,7 @@ body {
     align-items: center;
     justify-content: center;
     margin: 0 auto 0.4rem auto;
+    flex-shrink: 0;
 }
 
 .product-card-img {
@@ -762,24 +767,34 @@ body {
 
 .product-card-body {
     width: 100%;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.4rem;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .product-title {
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 0.88rem;
     color: var(--text-primary);
-    margin-bottom: 0.15rem;
-    white-space: nowrap;
+    margin-bottom: 0.2rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: normal;
+    word-break: break-word;
     text-align: center;
+    line-height: 1.25;
 }
 
 .product-stock {
     font-size: 0.78rem;
     color: var(--text-secondary);
     text-align: center;
+    margin-top: auto;
 }
 
 .product-card-footer {
@@ -788,7 +803,8 @@ body {
     justify-content: space-between;
     align-items: center;
     margin-top: auto;
-    padding-top: 0.35rem;
+    padding-top: 0.45rem;
+    padding-bottom: 0.1rem;
     border-top: 1px dashed var(--border-color-light);
 }
 

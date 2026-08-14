@@ -18,9 +18,7 @@
         @if (AuthState.UserRole == "Admin")
         {
             <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                <button class="btn btn-secondary" @onclick="DownloadExcelTemplate" title="تحميل قالب إكسيل معبأ بالأنواع والترويسة النموذجية">
-                    <i class="fa-solid fa-file-excel me-1" style="color: #107c41;"></i> تحميل القالب
-                </button>
+
                 <button class="btn btn-secondary" style="background: rgba(16, 124, 65, 0.15); border-color: #107c41; color: #107c41;" @onclick="OpenImportModal">
                     <i class="fa-solid fa-file-import me-1"></i> استيراد من إكسيل
                 </button>

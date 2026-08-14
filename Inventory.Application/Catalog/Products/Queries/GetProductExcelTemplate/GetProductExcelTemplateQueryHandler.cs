@@ -29,6 +29,7 @@ namespace Inventory.Application.Catalog.Products.Queries.GetProductExcelTemplate
                 "نسبة الضريبة %",
                 "قابل للوزن (نعم/لا)",
                 "تاريخ الانتهاء (نعم/لا)",
+                "رابط الصورة (URL)",
                 "الوصف"
             };
 
@@ -59,7 +60,8 @@ namespace Inventory.Application.Catalog.Products.Queries.GetProductExcelTemplate
             worksheet.Cell(2, 12).SetValue(0);
             worksheet.Cell(2, 13).SetValue("لا");
             worksheet.Cell(2, 14).SetValue("نعم");
-            worksheet.Cell(2, 15).SetValue("شيبس طماطم الحجم العائلي");
+            worksheet.Cell(2, 15).SetValue("https://images.openfoodfacts.org/images/products/622/123/456/7890/1.jpg");
+            worksheet.Cell(2, 16).SetValue("شيبس طماطم الحجم العائلي");
 
             // Write Sample Row 2
             worksheet.Cell(3, 1).SetValue("6229876543210");
@@ -76,7 +78,8 @@ namespace Inventory.Application.Catalog.Products.Queries.GetProductExcelTemplate
             worksheet.Cell(3, 12).SetValue(0);
             worksheet.Cell(3, 13).SetValue("نعم");
             worksheet.Cell(3, 14).SetValue("لا");
-            worksheet.Cell(3, 15).SetValue("موز بلدي فاخر");
+            worksheet.Cell(3, 15).SetValue("");
+            worksheet.Cell(3, 16).SetValue("موز بلدي فاخر");
 
             worksheet.Columns().AdjustToContents();
 

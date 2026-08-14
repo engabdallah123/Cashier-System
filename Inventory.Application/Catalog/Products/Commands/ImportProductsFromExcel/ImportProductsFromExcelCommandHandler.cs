@@ -3,6 +3,8 @@ using Inventory.Domain;
 using Inventory.Domain.Catalog.Categories;
 using Inventory.Domain.Catalog.Products.Entities;
 using Inventory.Domain.Catalog.Units;
+using Microsoft.AspNetCore.Http;
+using POS.Shared.Application.IService;
 using POS.Shared.Application.Messaging;
 using POS.Shared.Domain;
 
@@ -12,10 +14,14 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
         : ICommandHandler<ImportProductsFromExcelCommand, ProductImportResultDto>
     {
         private readonly IInventoryUnitOfWork _unitOfWork;
+        private readonly IFileService _fileService;
 
-        public ImportProductsFromExcelCommandHandler(IInventoryUnitOfWork unitOfWork)
+        public ImportProductsFromExcelCommandHandler(
+            IInventoryUnitOfWork unitOfWork,
+            IFileService fileService)
         {
             _unitOfWork = unitOfWork;
+            _fileService = fileService;
         }
 
         public async Task<Result<ProductImportResultDto>> Handle(
@@ -97,7 +103,28 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
 
                 bool isWeighable = ParseBool(GetCellValue(row.Cell(13)));
                 bool trackExpiry = ParseBool(GetCellValue(row.Cell(14)));
-                string description = GetCellValue(row.Cell(15));
+                
+                string col15 = GetCellValue(row.Cell(15));
+                string col16 = GetCellValue(row.Cell(16));
+
+                // Smart Detection of ImageUrl vs Description from columns 15 and 16
+                string? rawImageUrl = null;
+                string? description = null;
+
+                if (IsPossibleImageUrl(col15))
+                {
+                    rawImageUrl = col15;
+                    description = col16;
+                }
+                else if (IsPossibleImageUrl(col16))
+                {
+                    rawImageUrl = col16;
+                    description = col15;
+                }
+                else
+                {
+                    description = !string.IsNullOrWhiteSpace(col15) ? col15 : col16;
+                }
 
                 // Basic Row Validations
                 if (string.IsNullOrWhiteSpace(barcode))
@@ -222,6 +249,10 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                 // 3. Resolve Product in Database
                 var existingProduct = await _unitOfWork.ProductRepository.GetByBarcodeAsync(barcode, cancellationToken);
 
+                // Download/Process Image URL if provided
+                Guid targetProductId = existingProduct?.Id ?? Guid.NewGuid();
+                string? resolvedImageUrl = await ProcessImageUrlAsync(rawImageUrl, targetProductId, cancellationToken);
+
                 if (existingProduct != null)
                 {
                     if (!request.UpdateExisting)
@@ -237,6 +268,10 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                         continue;
                     }
 
+                    string? finalImageUrl = !string.IsNullOrWhiteSpace(resolvedImageUrl)
+                        ? resolvedImageUrl
+                        : existingProduct.ImageUrl;
+
                     // Update Existing Product
                     var updateRes = existingProduct.Update(
                         barcode, nameAr, nameEn, description,
@@ -244,7 +279,7 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                         purchasePrice, sellingPrice, wholesalePrice,
                         reorderLevel, maxStockLevel,
                         isWeighable, isActive: true, trackExpiry, taxRate,
-                        existingProduct.ImageUrl);
+                        finalImageUrl);
 
                     if (updateRes.IsFailure)
                     {
@@ -279,7 +314,7 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                         purchasePrice, sellingPrice, wholesalePrice,
                         null, description,
                         reorderLevel, maxStockLevel,
-                        isWeighable, isActive: true, trackExpiry, taxRate, null);
+                        isWeighable, isActive: true, trackExpiry, taxRate, resolvedImageUrl);
 
                     if (productRes.IsFailure)
                     {
@@ -307,6 +342,75 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return Result<ProductImportResultDto>.Success(result);
+        }
+
+        private async Task<string?> ProcessImageUrlAsync(string? rawUrl, Guid productId, CancellationToken ct)
+        {
+            if (string.IsNullOrWhiteSpace(rawUrl)) return null;
+
+            var trimmed = rawUrl.Trim();
+
+            // If it's already a relative path or local file, return as is
+            if (!trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                return trimmed;
+            }
+
+            // Try downloading image from HTTP/HTTPS URL
+            try
+            {
+                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                cts.CancelAfter(TimeSpan.FromSeconds(5));
+
+                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                httpClient.DefaultRequestHeaders.Add("User-Agent", "CashierSystem/1.0");
+
+                var response = await httpClient.GetAsync(trimmed, cts.Token);
+                if (response.IsSuccessStatusCode)
+                {
+                    var bytes = await response.Content.ReadAsByteArrayAsync(cts.Token);
+                    if (bytes != null && bytes.Length > 0)
+                    {
+                        var ext = ".jpg";
+                        var mediaType = response.Content.Headers.ContentType?.MediaType;
+                        if (!string.IsNullOrWhiteSpace(mediaType))
+                        {
+                            if (mediaType.Contains("png", StringComparison.OrdinalIgnoreCase)) ext = ".png";
+                            else if (mediaType.Contains("webp", StringComparison.OrdinalIgnoreCase)) ext = ".webp";
+                            else if (mediaType.Contains("gif", StringComparison.OrdinalIgnoreCase)) ext = ".gif";
+                        }
+
+                        var fileName = $"prod_{productId:N}{ext}";
+                        using var ms = new MemoryStream(bytes);
+                        IFormFile formFile = new FormFile(ms, 0, ms.Length, "file", fileName)
+                        {
+                            Headers = new HeaderDictionary(),
+                            ContentType = mediaType ?? "image/jpeg"
+                        };
+
+                        var uploadResult = await _fileService.UploadFileAsync(formFile, "uploads/products");
+                        if (uploadResult.IsSuccess)
+                        {
+                            return uploadResult.Value;
+                        }
+                    }
+                }
+            }
+            catch
+            {
+                // Fallback to storing original web URL string directly if download fails
+            }
+
+            return trimmed;
+        }
+
+        private static bool IsPossibleImageUrl(string val)
+        {
+            if (string.IsNullOrWhiteSpace(val)) return false;
+            var v = val.Trim().ToLower();
+            return v.StartsWith("http://") || v.StartsWith("https://") ||
+                   v.EndsWith(".jpg") || v.EndsWith(".jpeg") || v.EndsWith(".png") || v.EndsWith(".webp") || v.EndsWith(".gif");
         }
 
         private static string GetCellValue(IXLCell cell)
