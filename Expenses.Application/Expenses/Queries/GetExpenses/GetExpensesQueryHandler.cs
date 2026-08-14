@@ -28,10 +28,18 @@ namespace Expenses.Application.Expenses.Queries.GetExpenses
                 WHERE 1 = 1
                 """;
 
-            if (request.FromDate.HasValue)
+            DateTime? fromDate = request.FromDate.HasValue
+                ? (request.FromDate.Value.Kind == DateTimeKind.Utc ? request.FromDate.Value : DateTime.SpecifyKind(request.FromDate.Value, DateTimeKind.Local).ToUniversalTime())
+                : null;
+
+            DateTime? toDate = request.ToDate.HasValue
+                ? (request.ToDate.Value.Kind == DateTimeKind.Utc ? request.ToDate.Value : DateTime.SpecifyKind(request.ToDate.Value, DateTimeKind.Local).ToUniversalTime())
+                : null;
+
+            if (fromDate.HasValue)
                 sql += " AND e.ExpenseDate >= @FromDate";
 
-            if (request.ToDate.HasValue)
+            if (toDate.HasValue)
                 sql += " AND e.ExpenseDate <= @ToDate";
 
             sql += " ORDER BY e.ExpenseDate DESC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
@@ -40,8 +48,8 @@ namespace Expenses.Application.Expenses.Queries.GetExpenses
 
             var expenses = await connection.QueryAsync<ExpenseResponse>(sql, new
             {
-                request.FromDate,
-                request.ToDate,
+                FromDate = fromDate,
+                ToDate = toDate,
                 Offset = offset,
                 request.PageSize
             });

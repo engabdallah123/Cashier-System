@@ -34,6 +34,14 @@ namespace Sales.Application.Sales.Queries.GetSales
                 WHERE 1 = 1
                 """;
 
+            DateTime? fromDate = request.FromDate.HasValue
+                ? (request.FromDate.Value.Kind == DateTimeKind.Utc ? request.FromDate.Value : DateTime.SpecifyKind(request.FromDate.Value, DateTimeKind.Local).ToUniversalTime())
+                : null;
+
+            DateTime? toDate = request.ToDate.HasValue
+                ? (request.ToDate.Value.Kind == DateTimeKind.Utc ? request.ToDate.Value : DateTime.SpecifyKind(request.ToDate.Value, DateTimeKind.Local).ToUniversalTime())
+                : null;
+
             if (request.CashierId.HasValue)
                 sql += " AND s.CashierId = @CashierId";
 
@@ -43,10 +51,10 @@ namespace Sales.Application.Sales.Queries.GetSales
             if (request.CustomerId.HasValue)
                 sql += " AND s.CustomerId = @CustomerId";
 
-            if (request.FromDate.HasValue)
+            if (fromDate.HasValue)
                 sql += " AND s.SaleDate >= @FromDate";
 
-            if (request.ToDate.HasValue)
+            if (toDate.HasValue)
                 sql += " AND s.SaleDate <= @ToDate";
 
             sql += " ORDER BY s.SaleDate DESC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
@@ -58,8 +66,8 @@ namespace Sales.Application.Sales.Queries.GetSales
                 request.CashierId,
                 request.ShiftId,
                 request.CustomerId,
-                request.FromDate,
-                request.ToDate,
+                FromDate = fromDate,
+                ToDate = toDate,
                 Offset = offset,
                 request.PageSize
             });

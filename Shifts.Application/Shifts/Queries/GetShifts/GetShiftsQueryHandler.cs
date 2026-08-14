@@ -51,13 +51,21 @@ namespace Shifts.Application.Shifts.Queries.GetShifts
                 WHERE 1 = 1
                 """;
 
+            DateTime? fromDate = request.FromDate.HasValue
+                ? (request.FromDate.Value.Kind == DateTimeKind.Utc ? request.FromDate.Value : DateTime.SpecifyKind(request.FromDate.Value, DateTimeKind.Local).ToUniversalTime())
+                : null;
+
+            DateTime? toDate = request.ToDate.HasValue
+                ? (request.ToDate.Value.Kind == DateTimeKind.Utc ? request.ToDate.Value : DateTime.SpecifyKind(request.ToDate.Value, DateTimeKind.Local).ToUniversalTime())
+                : null;
+
             if (request.CashierId.HasValue)
                 sql += " AND s.CashierId = @CashierId";
 
-            if (request.FromDate.HasValue)
+            if (fromDate.HasValue)
                 sql += " AND s.OpenedAt >= @FromDate";
 
-            if (request.ToDate.HasValue)
+            if (toDate.HasValue)
                 sql += " AND s.OpenedAt <= @ToDate";
 
             sql += " ORDER BY s.OpenedAt DESC OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY";
@@ -67,8 +75,8 @@ namespace Shifts.Application.Shifts.Queries.GetShifts
             var shifts = await connection.QueryAsync<ShiftResponse>(sql, new
             {
                 request.CashierId,
-                request.FromDate,
-                request.ToDate,
+                FromDate = fromDate,
+                ToDate = toDate,
                 Offset = offset,
                 request.PageSize
             });

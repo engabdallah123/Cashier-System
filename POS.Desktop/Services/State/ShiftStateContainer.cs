@@ -12,7 +12,7 @@ namespace POS.Desktop.Services.State
         public void SetActiveShift(Guid shiftId, DateTime startTime, decimal initialCash)
         {
             ShiftId = shiftId;
-            StartTime = startTime;
+            StartTime = startTime.Kind == DateTimeKind.Utc ? startTime.ToLocalTime() : startTime;
             InitialCash = initialCash;
             IsShiftOpen = true;
             NotifyStateChanged();
