@@ -384,8 +384,8 @@
                 }
 
                 <div style="margin-bottom: 1.25rem;">
-                    <label class="form-label" style="font-weight: 600;">اختر ملف الإكسيل (.xlsx, .xls, .csv)</label>
-                    <InputFile OnChange="OnImportFileSelected" accept=".xlsx,.xls,.csv" class="form-control" style="padding: 0.5rem;" />
+                    <label class="form-label" style="font-weight: 600;">اختر ملف Excel (.xlsx, .xls) أو حزمة ZIP تحتوي على صور المنتجات (.zip)</label>
+                    <InputFile OnChange="OnImportFileSelected" accept=".xlsx,.xls,.csv,.zip" class="form-control" style="padding: 0.5rem;" />
                     @if (!string.IsNullOrEmpty(selectedImportFileName))
                     {
                         <div style="margin-top: 0.4rem; font-size: 0.85rem; color: var(--accent-emerald);">
@@ -831,15 +831,15 @@
         var file = e.File;
         if (file != null)
         {
-            if (file.Size > 10 * 1024 * 1024)
+            if (file.Size > 100 * 1024 * 1024)
             {
-                importErrorMessage = "حجم الملف يتجاوز الحد الأقصى المسموح به (10 ميجابايت).";
+                importErrorMessage = "حجم الملف يتجاوز الحد الأقصى المسموح به (100 ميجابايت).";
                 return;
             }
 
             try
             {
-                using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                using var stream = file.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024);
                 using var ms = new MemoryStream();
                 await stream.CopyToAsync(ms);
                 selectedImportFileBytes = ms.ToArray();

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http;
 using POS.Shared.Application.IService;
 using POS.Shared.Application.Messaging;
 using POS.Shared.Domain;
+using System.IO.Compression;
 
 namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExcel
 {
@@ -36,7 +37,52 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                     new Error("Excel.EmptyFile", "ملف الإكسيل فارغ أو غير صالح."));
             }
 
-            // Load existing categories and units for lookup and comparison
+            // 1. Detect if file is a ZIP archive containing products.xlsx + images/ folder
+            byte[] excelBytes = request.FileBytes;
+            var zipImagesByBarcode = new Dictionary<string, ZipArchiveEntry>(StringComparer.OrdinalIgnoreCase);
+
+            if (IsZipFile(request.FileBytes))
+            {
+                try
+                {
+                    using var zipStream = new MemoryStream(request.FileBytes);
+                    using var archive = new ZipArchive(zipStream, ZipArchiveMode.Read, leaveOpen: true);
+
+                    // Find excel entry (*.xlsx or *.xls) inside ZIP archive
+                    var excelEntry = archive.Entries.FirstOrDefault(e =>
+                        e.FullName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) ||
+                        e.FullName.EndsWith(".xls", StringComparison.OrdinalIgnoreCase));
+
+                    if (excelEntry != null)
+                    {
+                        using var ms = new MemoryStream();
+                        using var entryStream = excelEntry.Open();
+                        await entryStream.CopyToAsync(ms, cancellationToken);
+                        excelBytes = ms.ToArray();
+                    }
+
+                    // Index image files by barcode (filename without extension)
+                    foreach (var entry in archive.Entries)
+                    {
+                        var ext = Path.GetExtension(entry.FullName).ToLowerInvariant();
+                        if (ext is ".jpg" or ".jpeg" or ".png" or ".webp" or ".gif")
+                        {
+                            var fileNameWithoutExt = Path.GetFileNameWithoutExtension(entry.FullName).Trim();
+                            if (!string.IsNullOrWhiteSpace(fileNameWithoutExt) && !zipImagesByBarcode.ContainsKey(fileNameWithoutExt))
+                            {
+                                zipImagesByBarcode[fileNameWithoutExt] = entry;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    return Result<ProductImportResultDto>.Failure(
+                        new Error("Zip.Invalid", $"فشل قراءة ملف الـ ZIP المضغوط: {ex.Message}"));
+                }
+            }
+
+            // 2. Pre-fetch existing Categories, Units, and Products for high-speed Bulk operations
             var existingCategories = await _unitOfWork.CategoryRepository.GetAllAsync();
             var categoryMap = new Dictionary<string, Category>(StringComparer.OrdinalIgnoreCase);
             foreach (var cat in existingCategories)
@@ -59,8 +105,12 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                     unitMap[u.Symbol.Trim()] = u;
             }
 
-            using var stream = new MemoryStream(request.FileBytes);
-            using var workbook = new XLWorkbook(stream);
+            var allExistingProducts = await _unitOfWork.ProductRepository.GetAllAsync();
+            var productMap = allExistingProducts.ToDictionary(p => p.Barcode.Trim(), StringComparer.OrdinalIgnoreCase);
+
+            // 3. Open Excel Workbook
+            using var excelStream = new MemoryStream(excelBytes);
+            using var workbook = new XLWorkbook(excelStream);
             var worksheet = workbook.Worksheets.FirstOrDefault();
 
             if (worksheet == null)
@@ -77,16 +127,17 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
             }
 
             int lastRow = range.LastRow().RowNumber();
-            result.TotalRows = lastRow - 1; // Subtract 1 for header row
+            result.TotalRows = lastRow - 1; // Exclude header
 
-            // Track barcodes seen within this file batch
             var batchBarcodes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var newProductsToAdd = new List<Product>();
+            var newCategoriesToAdd = new List<Category>();
+            var newUnitsToAdd = new List<Unit>();
 
             for (int rowNum = 2; rowNum <= lastRow; rowNum++)
             {
                 var row = worksheet.Row(rowNum);
 
-                // Read cell values
                 string barcode = GetCellValue(row.Cell(1));
                 string nameAr = GetCellValue(row.Cell(2));
                 string nameEn = GetCellValue(row.Cell(3));
@@ -103,11 +154,10 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
 
                 bool isWeighable = ParseBool(GetCellValue(row.Cell(13)));
                 bool trackExpiry = ParseBool(GetCellValue(row.Cell(14)));
-                
+
                 string col15 = GetCellValue(row.Cell(15));
                 string col16 = GetCellValue(row.Cell(16));
 
-                // Smart Detection of ImageUrl vs Description from columns 15 and 16
                 string? rawImageUrl = null;
                 string? description = null;
 
@@ -126,7 +176,7 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                     description = !string.IsNullOrWhiteSpace(col15) ? col15 : col16;
                 }
 
-                // Basic Row Validations
+                // Basic Validations
                 if (string.IsNullOrWhiteSpace(barcode))
                 {
                     result.ErrorCount++;
@@ -166,7 +216,7 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                     continue;
                 }
 
-                // Check duplicate barcode inside same Excel batch
+                // Check duplicates within same Excel file
                 if (!batchBarcodes.Add(barcode))
                 {
                     result.ErrorCount++;
@@ -180,13 +230,12 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                     continue;
                 }
 
-                // Fill English name if omitted
                 if (string.IsNullOrWhiteSpace(nameEn))
                 {
                     nameEn = nameAr;
                 }
 
-                // 1. Resolve Category (Match existing or Add new)
+                // 1. Resolve Category
                 Guid categoryId;
                 string catKey = string.IsNullOrWhiteSpace(categoryName) ? "عام" : categoryName.Trim();
 
@@ -211,12 +260,12 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                     }
 
                     var newCat = newCatResult.Value!;
-                    await _unitOfWork.CategoryRepository.AddAsync(newCat);
+                    newCategoriesToAdd.Add(newCat);
                     categoryMap[catKey] = newCat;
                     categoryId = newCat.Id;
                 }
 
-                // 2. Resolve Unit (Match existing or Add new)
+                // 2. Resolve Unit
                 Guid unitId;
                 string uKey = string.IsNullOrWhiteSpace(unitName) ? "قطعة" : unitName.Trim();
 
@@ -241,19 +290,16 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                     }
 
                     var newUnit = newUnitResult.Value!;
-                    await _unitOfWork.UnitRepository.AddAsync(newUnit);
+                    newUnitsToAdd.Add(newUnit);
                     unitMap[uKey] = newUnit;
                     unitId = newUnit.Id;
                 }
 
-                // 3. Resolve Product in Database
-                var existingProduct = await _unitOfWork.ProductRepository.GetByBarcodeAsync(barcode, cancellationToken);
+                // 3. Resolve Image (ZIP matched by Barcode OR Text URL string directly)
+                string? resolvedImageUrl = await ProcessProductImageAsync(barcode, rawImageUrl, zipImagesByBarcode, cancellationToken);
 
-                // Download/Process Image URL if provided
-                Guid targetProductId = existingProduct?.Id ?? Guid.NewGuid();
-                string? resolvedImageUrl = await ProcessImageUrlAsync(rawImageUrl, targetProductId, cancellationToken);
-
-                if (existingProduct != null)
+                // 4. Resolve Product in Database
+                if (productMap.TryGetValue(barcode.Trim(), out var existingProduct))
                 {
                     if (!request.UpdateExisting)
                     {
@@ -272,7 +318,6 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                         ? resolvedImageUrl
                         : existingProduct.ImageUrl;
 
-                    // Update Existing Product
                     var updateRes = existingProduct.Update(
                         barcode, nameAr, nameEn, description,
                         categoryId, unitId, null,
@@ -335,58 +380,61 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                         newProd.AdjustStock(initialStock, allowNegativeStock: true);
                     }
 
-                    await _unitOfWork.ProductRepository.AddAsync(newProd);
+                    newProductsToAdd.Add(newProd);
+                    productMap[barcode.Trim()] = newProd;
                     result.SuccessCount++;
                 }
             }
 
+            // Bulk Insert Categories and Units if any missing ones were auto-created
+            if (newCategoriesToAdd.Any())
+            {
+                await _unitOfWork.CategoryRepository.AddRangeAsync(newCategoriesToAdd);
+            }
+
+            if (newUnitsToAdd.Any())
+            {
+                await _unitOfWork.UnitRepository.AddRangeAsync(newUnitsToAdd);
+            }
+
+            // Bulk Insert Products using AddRangeAsync
+            if (newProductsToAdd.Any())
+            {
+                await _unitOfWork.ProductRepository.AddRangeAsync(newProductsToAdd);
+            }
+
+            // Save all changes in a single high-performance Bulk commit
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             return Result<ProductImportResultDto>.Success(result);
         }
 
-        private async Task<string?> ProcessImageUrlAsync(string? rawUrl, Guid productId, CancellationToken ct)
+        private async Task<string?> ProcessProductImageAsync(
+            string barcode,
+            string? rawUrl,
+            Dictionary<string, ZipArchiveEntry> zipImages,
+            CancellationToken ct)
         {
-            if (string.IsNullOrWhiteSpace(rawUrl)) return null;
-
-            var trimmed = rawUrl.Trim();
-
-            // If it's already a relative path or local file, return as is
-            if (!trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
-                !trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            // 1. First priority: Image in ZIP package matching the product Barcode (e.g. images/6221031200011.jpg)
+            if (!string.IsNullOrWhiteSpace(barcode) && zipImages.TryGetValue(barcode.Trim(), out var zipEntry))
             {
-                return trimmed;
-            }
-
-            // Try downloading image from HTTP/HTTPS URL
-            try
-            {
-                using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                cts.CancelAfter(TimeSpan.FromSeconds(5));
-
-                using var httpClient = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
-                httpClient.DefaultRequestHeaders.Add("User-Agent", "CashierSystem/1.0");
-
-                var response = await httpClient.GetAsync(trimmed, cts.Token);
-                if (response.IsSuccessStatusCode)
+                try
                 {
-                    var bytes = await response.Content.ReadAsByteArrayAsync(cts.Token);
-                    if (bytes != null && bytes.Length > 0)
-                    {
-                        var ext = ".jpg";
-                        var mediaType = response.Content.Headers.ContentType?.MediaType;
-                        if (!string.IsNullOrWhiteSpace(mediaType))
-                        {
-                            if (mediaType.Contains("png", StringComparison.OrdinalIgnoreCase)) ext = ".png";
-                            else if (mediaType.Contains("webp", StringComparison.OrdinalIgnoreCase)) ext = ".webp";
-                            else if (mediaType.Contains("gif", StringComparison.OrdinalIgnoreCase)) ext = ".gif";
-                        }
+                    using var ms = new MemoryStream();
+                    using var entryStream = zipEntry.Open();
+                    await entryStream.CopyToAsync(ms, ct);
+                    var imageBytes = ms.ToArray();
 
-                        var fileName = $"prod_{productId:N}{ext}";
-                        using var ms = new MemoryStream(bytes);
-                        IFormFile formFile = new FormFile(ms, 0, ms.Length, "file", fileName)
+                    if (imageBytes.Length > 0)
+                    {
+                        var ext = Path.GetExtension(zipEntry.FullName);
+                        if (string.IsNullOrWhiteSpace(ext)) ext = ".jpg";
+
+                        var fileName = $"{barcode.Trim()}_{Guid.NewGuid():N}{ext}";
+                        ms.Position = 0;
+                        IFormFile formFile = new FormFile(ms, 0, imageBytes.Length, "file", fileName)
                         {
                             Headers = new HeaderDictionary(),
-                            ContentType = mediaType ?? "image/jpeg"
+                            ContentType = GetContentTypeFromExtension(ext)
                         };
 
                         var uploadResult = await _fileService.UploadFileAsync(formFile, "uploads/products");
@@ -396,13 +444,37 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                         }
                     }
                 }
-            }
-            catch
-            {
-                // Fallback to storing original web URL string directly if download fails
+                catch
+                {
+                    // Fallback to text URL if extraction fails
+                }
             }
 
-            return trimmed;
+            // 2. Direct text URL string mode (no HTTP download, stored directly as requested by user)
+            if (!string.IsNullOrWhiteSpace(rawUrl))
+            {
+                return rawUrl.Trim();
+            }
+
+            return null;
+        }
+
+        private static bool IsZipFile(byte[] fileBytes)
+        {
+            if (fileBytes == null || fileBytes.Length < 4) return false;
+            return fileBytes[0] == 0x50 && fileBytes[1] == 0x4B && fileBytes[2] == 0x03 && fileBytes[3] == 0x04;
+        }
+
+        private static string GetContentTypeFromExtension(string ext)
+        {
+            ext = ext.ToLowerInvariant();
+            return ext switch
+            {
+                ".png" => "image/png",
+                ".webp" => "image/webp",
+                ".gif" => "image/gif",
+                _ => "image/jpeg"
+            };
         }
 
         private static bool IsPossibleImageUrl(string val)
