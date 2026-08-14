@@ -804,8 +804,7 @@
     private string GetImageFullUrl(string? relativeOrUrl)
     {
         if (string.IsNullOrWhiteSpace(relativeOrUrl)) return string.Empty;
-        if (relativeOrUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || relativeOrUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return relativeOrUrl;
-        return $"http://localhost:5000/{relativeOrUrl.TrimStart('/')}";
+        return ApiClient.GetImageFullUrl(relativeOrUrl);
     }
 
     private bool showImportModal = false;

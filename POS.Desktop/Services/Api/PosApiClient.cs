@@ -15,13 +15,16 @@ namespace POS.Desktop.Services.Api
         public string GetImageFullUrl(string? relativeOrUrl)
         {
             if (string.IsNullOrWhiteSpace(relativeOrUrl)) return string.Empty;
-            if (relativeOrUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || relativeOrUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+
+            var normalized = relativeOrUrl.Trim().Replace('\\', '/');
+
+            if (normalized.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || normalized.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
-                return relativeOrUrl;
+                return normalized;
             }
 
             var baseUri = _http.BaseAddress?.ToString() ?? "https://localhost:7198/";
-            return new Uri(new Uri(baseUri), relativeOrUrl.TrimStart('/')).ToString();
+            return new Uri(new Uri(baseUri), normalized.TrimStart('/')).ToString();
         }
 
         // Auth

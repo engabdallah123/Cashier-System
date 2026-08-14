@@ -26,6 +26,7 @@ namespace POS.Desktop.Services.Api
         Guid UnitId,
         string? UnitSymbol,
         Guid? SupplierId,
+        string? SupplierName,
         decimal PurchasePrice,
         decimal SellingPrice,
         decimal WholesalePrice,
