@@ -126,6 +126,26 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                     new Error("Excel.NoDataRows", "لا تحتوي ورقة العمل على صفوف بيانات بعد الترويسة."));
             }
 
+            // 4. Dynamic Column Header Detection (Row 1)
+            var headerRow = worksheet.Row(1);
+            int lastCellNum = Math.Max(16, headerRow.LastCellUsed()?.Address.ColumnNumber ?? 16);
+
+            int imageColIndex = -1;
+            int descColIndex = -1;
+
+            for (int col = 1; col <= lastCellNum; col++)
+            {
+                var hText = GetCellValue(headerRow.Cell(col)).ToLowerInvariant();
+                if (imageColIndex == -1 && (hText.Contains("صورة") || hText.Contains("صوره") || hText.Contains("image") || hText.Contains("url") || hText.Contains("رابط")))
+                {
+                    imageColIndex = col;
+                }
+                else if (descColIndex == -1 && (hText.Contains("وصف") || hText.Contains("description") || hText.Contains("تفاصيل")))
+                {
+                    descColIndex = col;
+                }
+            }
+
             int lastRow = range.LastRow().RowNumber();
             result.TotalRows = lastRow - 1; // Exclude header
 
@@ -161,19 +181,44 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                 string? rawImageUrl = null;
                 string? description = null;
 
-                if (IsPossibleImageUrl(col15))
+                // Priority 1: Check dynamic header column for Image URL
+                if (imageColIndex > 0)
                 {
-                    rawImageUrl = col15;
-                    description = col16;
+                    var imgVal = GetCellValue(row.Cell(imageColIndex));
+                    if (!string.IsNullOrWhiteSpace(imgVal))
+                    {
+                        rawImageUrl = imgVal;
+                    }
                 }
-                else if (IsPossibleImageUrl(col16))
+
+                // Priority 2: Check dynamic header column for Description
+                if (descColIndex > 0)
                 {
-                    rawImageUrl = col16;
-                    description = col15;
+                    var descVal = GetCellValue(row.Cell(descColIndex));
+                    if (!string.IsNullOrWhiteSpace(descVal))
+                    {
+                        description = descVal;
+                    }
                 }
-                else
+
+                // Fallback smart detection if header matching did not yield an image URL
+                if (string.IsNullOrWhiteSpace(rawImageUrl))
                 {
-                    description = !string.IsNullOrWhiteSpace(col15) ? col15 : col16;
+                    if (IsPossibleImageUrl(col15))
+                    {
+                        rawImageUrl = col15;
+                        if (string.IsNullOrWhiteSpace(description)) description = col16;
+                    }
+                    else if (IsPossibleImageUrl(col16))
+                    {
+                        rawImageUrl = col16;
+                        if (string.IsNullOrWhiteSpace(description)) description = col15;
+                    }
+                    else
+                    {
+                        if (string.IsNullOrWhiteSpace(description))
+                            description = !string.IsNullOrWhiteSpace(col15) ? col15 : col16;
+                    }
                 }
 
                 // Basic Validations
@@ -414,7 +459,7 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
             Dictionary<string, ZipArchiveEntry> zipImages,
             CancellationToken ct)
         {
-            // 1. First priority: Image in ZIP package matching the product Barcode (e.g. images/6221031200011.jpg)
+            // 1. First priority: Image in ZIP package matching product Barcode
             if (!string.IsNullOrWhiteSpace(barcode) && zipImages.TryGetValue(barcode.Trim(), out var zipEntry))
             {
                 try
@@ -444,16 +489,22 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
                         }
                     }
                 }
-                catch
-                {
-                    // Fallback to text URL if extraction fails
-                }
+                catch { }
             }
 
-            // 2. Direct text URL string mode (no HTTP download, stored directly as requested by user)
+            // 2. Direct text URL string mode (save directly to DB)
             if (!string.IsNullOrWhiteSpace(rawUrl))
             {
-                return rawUrl.Trim();
+                var trimmed = rawUrl.Trim();
+                if (trimmed.StartsWith("www.", StringComparison.OrdinalIgnoreCase))
+                {
+                    trimmed = "https://" + trimmed;
+                }
+                else if (trimmed.StartsWith("//", StringComparison.OrdinalIgnoreCase))
+                {
+                    trimmed = "https:" + trimmed;
+                }
+                return trimmed;
             }
 
             return null;
@@ -480,15 +531,60 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
         private static bool IsPossibleImageUrl(string val)
         {
             if (string.IsNullOrWhiteSpace(val)) return false;
-            var v = val.Trim().ToLower();
-            return v.StartsWith("http://") || v.StartsWith("https://") ||
-                   v.EndsWith(".jpg") || v.EndsWith(".jpeg") || v.EndsWith(".png") || v.EndsWith(".webp") || v.EndsWith(".gif");
+            var v = val.Trim().ToLowerInvariant();
+            return v.StartsWith("http://") ||
+                   v.StartsWith("https://") ||
+                   v.StartsWith("//") ||
+                   v.StartsWith("www.") ||
+                   v.EndsWith(".jpg") || v.EndsWith(".jpeg") || v.EndsWith(".png") || v.EndsWith(".webp") || v.EndsWith(".gif") || v.EndsWith(".avif") || v.EndsWith(".svg") ||
+                   v.Contains(".jpg?") || v.Contains(".jpeg?") || v.Contains(".png?") || v.Contains(".webp?") ||
+                   v.Contains("/images/") || v.Contains("/image/") || v.Contains("/img/");
         }
 
         private static string GetCellValue(IXLCell cell)
         {
             if (cell == null || cell.IsEmpty()) return string.Empty;
-            return cell.GetValue<string>()?.Trim() ?? string.Empty;
+
+            // 1. Extract URL address if cell contains an Excel Hyperlink object
+            try
+            {
+                if (cell.HasHyperlink)
+                {
+                    var hyperlink = cell.GetHyperlink();
+                    if (hyperlink != null)
+                    {
+                        var address = hyperlink.ExternalAddress?.ToString()?.Trim();
+                        if (!string.IsNullOrWhiteSpace(address))
+                        {
+                            return address;
+                        }
+
+                        var href = hyperlink.InternalAddress?.Trim();
+                        if (!string.IsNullOrWhiteSpace(href))
+                        {
+                            return href;
+                        }
+                    }
+                }
+            }
+            catch { }
+
+            // 2. Try formatted cell string
+            try
+            {
+                var formatted = cell.GetFormattedString();
+                if (!string.IsNullOrWhiteSpace(formatted)) return formatted.Trim();
+            }
+            catch { }
+
+            // 3. Fallback to raw string / value
+            var rawStr = cell.GetValue<string>()?.Trim();
+            if (!string.IsNullOrWhiteSpace(rawStr)) return rawStr;
+
+            var valStr = cell.Value.ToString()?.Trim();
+            if (!string.IsNullOrWhiteSpace(valStr)) return valStr;
+
+            return string.Empty;
         }
 
         private static decimal ParseDecimal(string val, decimal defaultValue)

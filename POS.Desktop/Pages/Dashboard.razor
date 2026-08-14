@@ -800,17 +800,25 @@
     }
 
     .progress-track {
-        height: 8px;
-        background: var(--bg-secondary);
-        border-radius: 4px;
+        height: 10px;
+        background: rgba(0, 0, 0, 0.15);
+        border-radius: 6px;
         overflow: hidden;
+        margin-top: 0.15rem;
     }
 
     .progress-fill {
         height: 100%;
-        border-radius: 4px;
+        border-radius: 6px;
         transition: width 0.4s ease;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     }
+
+    .pm-fill-cash { background: linear-gradient(90deg, #10b981, #059669); }
+    .pm-fill-card { background: linear-gradient(90deg, #3b82f6, #2563eb); }
+    .pm-fill-wallet { background: linear-gradient(90deg, #8b5cf6, #7c3aed); }
+    .pm-fill-credit { background: linear-gradient(90deg, #f59e0b, #d97706); }
+    .pm-fill-default { background: linear-gradient(90deg, #6366f1, #4f46e5); }
 
     .pm-pct {
         font-size: 0.75rem;
@@ -959,10 +967,10 @@
 
     private string GetPaymentProgressColor(string method) => method?.ToLower() switch
     {
-        "cash" => "text-green-bg",
-        "card" or "visa" => "text-blue-bg",
-        "wallet" => "text-purple-bg",
-        "credit" => "text-amber-bg",
-        _ => "text-indigo-bg"
+        "cash" => "pm-fill-cash",
+        "card" or "visa" => "pm-fill-card",
+        "wallet" => "pm-fill-wallet",
+        "credit" => "pm-fill-credit",
+        _ => "pm-fill-default"
     };
 }

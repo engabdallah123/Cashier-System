@@ -19,15 +19,20 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
         {
             using var connection = _sqlConnectionFactory.CreateConnection();
 
-            var fromDate = request.FromDate ?? new DateTime(2000, 1, 1);
-            var toDate = request.ToDate ?? DateTime.UtcNow.AddDays(1);
+            DateTime fromDate = request.FromDate.HasValue
+                ? (request.FromDate.Value.Kind == DateTimeKind.Utc ? request.FromDate.Value : DateTime.SpecifyKind(request.FromDate.Value, DateTimeKind.Local).ToUniversalTime())
+                : new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+            DateTime toDate = request.ToDate.HasValue
+                ? (request.ToDate.Value.Kind == DateTimeKind.Utc ? request.ToDate.Value : DateTime.SpecifyKind(request.ToDate.Value, DateTimeKind.Local).ToUniversalTime())
+                : DateTime.UtcNow.AddDays(1);
 
             const string salesSql = """
                 SELECT 
                     ISNULL(SUM(TotalAmount), 0) AS TotalSales,
                     COUNT(1) AS TotalInvoices
                 FROM [Sales].[Sales]
-                WHERE Status = 1 AND SaleDate >= @FromDate AND SaleDate <= @ToDate
+                WHERE Status IN (1, 4) AND SaleDate >= @FromDate AND SaleDate <= @ToDate
                 """;
 
             var salesMetrics = await connection.QuerySingleAsync(salesSql, new { FromDate = fromDate, ToDate = toDate });
@@ -92,7 +97,7 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
                 FROM [Sales].[SaleItems] i
                 JOIN [Sales].[Sales] s ON i.SaleId = s.Id
                 LEFT JOIN [Inventory].[Products] p ON i.ProductId = p.Id
-                WHERE s.Status = 1 AND s.SaleDate >= @FromDate AND s.SaleDate <= @ToDate
+                WHERE s.Status IN (1, 4) AND s.SaleDate >= @FromDate AND s.SaleDate <= @ToDate
                 GROUP BY i.ProductId, p.NameAr, p.Barcode
                 ORDER BY TotalRevenue DESC
                 """;
@@ -119,7 +124,7 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
                     ISNULL(SUM(TotalAmount), 0) AS TotalAmount,
                     COUNT(1) AS InvoiceCount
                 FROM [Sales].[Sales]
-                WHERE Status = 1 AND SaleDate >= @FromDate AND SaleDate <= @ToDate
+                WHERE Status IN (1, 4) AND SaleDate >= @FromDate AND SaleDate <= @ToDate
                 GROUP BY PaymentMethod
                 """;
             var rawPaymentMethods = (await connection.QueryAsync(paymentMethodsSql, new { FromDate = fromDate, ToDate = toDate })).ToList();
@@ -131,15 +136,15 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
                 return new PaymentMethodSummaryResponse(method, amount, count, Math.Round(pct, 1));
             }).ToList();
 
-            var now = DateTime.Now;
-            var todayStart = now.Date;
-            var todayEnd = todayStart.AddDays(1).AddTicks(-1);
+            var nowLocal = DateTime.Now;
+            var todayStart = DateTime.SpecifyKind(nowLocal.Date, DateTimeKind.Local).ToUniversalTime();
+            var todayEnd = DateTime.SpecifyKind(nowLocal.Date.AddDays(1).AddTicks(-1), DateTimeKind.Local).ToUniversalTime();
 
-            var monthStart = new DateTime(now.Year, now.Month, 1);
-            var monthEnd = monthStart.AddMonths(1).AddTicks(-1);
+            var monthStart = DateTime.SpecifyKind(new DateTime(nowLocal.Year, nowLocal.Month, 1), DateTimeKind.Local).ToUniversalTime();
+            var monthEnd = DateTime.SpecifyKind(new DateTime(nowLocal.Year, nowLocal.Month, 1).AddMonths(1).AddTicks(-1), DateTimeKind.Local).ToUniversalTime();
 
-            var yearStart = new DateTime(now.Year, 1, 1);
-            var yearEnd = yearStart.AddYears(1).AddTicks(-1);
+            var yearStart = DateTime.SpecifyKind(new DateTime(nowLocal.Year, 1, 1), DateTimeKind.Local).ToUniversalTime();
+            var yearEnd = DateTime.SpecifyKind(new DateTime(nowLocal.Year, 1, 1).AddYears(1).AddTicks(-1), DateTimeKind.Local).ToUniversalTime();
 
             var todayMetrics = await GetPeriodMetricsAsync(connection, todayStart, todayEnd);
             var monthMetrics = await GetPeriodMetricsAsync(connection, monthStart, monthEnd);
@@ -175,8 +180,8 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
         {
             const string periodSql = """
                 SELECT 
-                    (SELECT ISNULL(SUM(TotalAmount), 0) FROM [Sales].[Sales] WHERE Status = 1 AND SaleDate >= @Start AND SaleDate <= @End) AS TotalSales,
-                    (SELECT COUNT(1) FROM [Sales].[Sales] WHERE Status = 1 AND SaleDate >= @Start AND SaleDate <= @End) AS TotalInvoices,
+                    (SELECT ISNULL(SUM(TotalAmount), 0) FROM [Sales].[Sales] WHERE Status IN (1, 4) AND SaleDate >= @Start AND SaleDate <= @End) AS TotalSales,
+                    (SELECT COUNT(1) FROM [Sales].[Sales] WHERE Status IN (1, 4) AND SaleDate >= @Start AND SaleDate <= @End) AS TotalInvoices,
                     (SELECT ISNULL(SUM(TotalAmount), 0) FROM [Purchases].[Purchases] WHERE Status = 2 AND PurchaseDate >= @Start AND PurchaseDate <= @End) AS TotalPurchases,
                     (SELECT ISNULL(SUM(Amount), 0) FROM [Expenses].[Expenses] WHERE ExpenseDate >= @Start AND ExpenseDate <= @End) AS TotalExpenses,
                     (SELECT ISNULL(SUM(TotalAmount), 0) FROM [Returns].[SalesReturns] WHERE Status = 1 AND ReturnDate >= @Start AND ReturnDate <= @End) AS SalesReturns,

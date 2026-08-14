@@ -53,5 +53,15 @@ namespace Inventory.Infrastructre.Repositories.Catalog
         {
             _context.Products.Remove(product);
         }
+
+        public async Task AddRangeAsync(IEnumerable<Product> products, CancellationToken cancellationToken = default)
+        {
+            await _context.Products.AddRangeAsync(products, cancellationToken);
+        }
+
+        public async Task<IReadOnlyList<Product>> GetAllAsync(CancellationToken cancellationToken = default)
+        {
+            return await _context.Products.ToListAsync(cancellationToken);
+        }
     }
 }
