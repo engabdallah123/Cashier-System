@@ -60,6 +60,18 @@
             iframe.contentWindow.print();
         };
 
+        window.downloadFileFromBase64 = function (fileName, contentType, base64String) {
+            const blob = base64ToBlob(base64String, contentType);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        };
+
         function base64ToBlob(base64, type) {
             const binStr = atob(base64);
             const len = binStr.length;

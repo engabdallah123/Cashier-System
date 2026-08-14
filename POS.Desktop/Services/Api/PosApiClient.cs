@@ -120,6 +120,49 @@ namespace POS.Desktop.Services.Api
             }
         }
 
+        public async Task<(ProductImportResultDto? Result, string? Error)> ImportProductsExcelAsync(byte[] fileBytes, string fileName, bool updateExisting)
+        {
+            try
+            {
+                using var content = new MultipartFormDataContent();
+                var byteContent = new ByteArrayContent(fileBytes);
+                byteContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+                content.Add(byteContent, "file", fileName);
+
+                var url = $"api/inventory/products/import-excel?updateExisting={updateExisting}";
+                var response = await _http.PostAsync(url, content);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errText = await response.Content.ReadAsStringAsync();
+                    return (null, string.IsNullOrWhiteSpace(errText) ? "فشل استيراد ملف الإكسيل." : errText);
+                }
+
+                var importResult = await response.Content.ReadFromJsonAsync<ProductImportResultDto>();
+                return (importResult, null);
+            }
+            catch (Exception ex)
+            {
+                return (null, ex.Message);
+            }
+        }
+
+        public async Task<byte[]?> DownloadProductExcelTemplateAsync()
+        {
+            try
+            {
+                var response = await _http.GetAsync("api/inventory/products/excel-template");
+                if (response.IsSuccessStatusCode)
+                {
+                    return await response.Content.ReadAsByteArrayAsync();
+                }
+                return null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
 
         public async Task<(Guid? ProductId, string? Error)> CreateProductAsync(CreateProductFormModel model, byte[]? imageBytes = null, string? fileName = null)
         {

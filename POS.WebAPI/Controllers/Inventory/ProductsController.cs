@@ -1,8 +1,10 @@
 using Inventory.Application.Catalog.Products.Commands.CreateProduct;
 using Inventory.Application.Catalog.Products.Commands.DeleteProduct;
+using Inventory.Application.Catalog.Products.Commands.ImportProductsFromExcel;
 using Inventory.Application.Catalog.Products.Commands.UpdateProduct;
 using Inventory.Application.Catalog.Products.Queries.GetProductByBarcode;
 using Inventory.Application.Catalog.Products.Queries.GetProductById;
+using Inventory.Application.Catalog.Products.Queries.GetProductExcelTemplate;
 using Inventory.Application.Catalog.Products.Queries.GetProducts;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -140,6 +142,39 @@ namespace POS.WebAPI.Controllers.Inventory
                 return BadRequest(result.Error);
 
             return Ok(result.Value);
+        }
+
+        [HttpPost("import-excel")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> ImportExcel(IFormFile file, [FromQuery] bool updateExisting = false, CancellationToken ct = default)
+        {
+            if (file == null || file.Length == 0)
+                return BadRequest("لم يتم تحديد ملف إكسيل مرفوع.");
+
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms, ct);
+            var fileBytes = ms.ToArray();
+
+            var command = new ImportProductsFromExcelCommand(fileBytes, updateExisting);
+            var result = await _sender.Send(command, ct);
+
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return Ok(result.Value);
+        }
+
+        [HttpGet("excel-template")]
+        public async Task<IActionResult> DownloadTemplate(CancellationToken ct)
+        {
+            var result = await _sender.Send(new GetProductExcelTemplateQuery(), ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return File(
+                result.Value,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "Products_Import_Template.xlsx");
         }
     }
 }

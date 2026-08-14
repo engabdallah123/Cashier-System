@@ -7,6 +7,7 @@
 @attribute [Authorize]
 @inject PosApiClient ApiClient
 @inject CustomAuthStateProvider AuthState
+@inject IJSRuntime JS
 
 <div>
     <div class="page-header">
@@ -16,9 +17,17 @@
         </div>
         @if (AuthState.UserRole == "Admin")
         {
-            <button class="btn btn-primary" @onclick="OpenAddModal">
-                <i class="fa-solid fa-plus me-1"></i> إضافة منتج جديد
-            </button>
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                <button class="btn btn-secondary" @onclick="DownloadExcelTemplate" title="تحميل قالب إكسيل معبأ بالأنواع والترويسة النموذجية">
+                    <i class="fa-solid fa-file-excel me-1" style="color: #107c41;"></i> تحميل القالب
+                </button>
+                <button class="btn btn-secondary" style="background: rgba(16, 124, 65, 0.15); border-color: #107c41; color: #107c41;" @onclick="OpenImportModal">
+                    <i class="fa-solid fa-file-import me-1"></i> استيراد من إكسيل
+                </button>
+                <button class="btn btn-primary" @onclick="OpenAddModal">
+                    <i class="fa-solid fa-plus me-1"></i> إضافة منتج جديد
+                </button>
+            </div>
         }
     </div>
 
@@ -355,6 +364,116 @@
     </div>
 }
 
+<!-- Excel Import Modal -->
+@if (showImportModal)
+{
+    <div class="modal-overlay" @onclick="CloseModals">
+        <div class="modal-card" style="width: 680px; max-width: 95vw;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fa-solid fa-file-excel me-2" style="color: #107c41;"></i> استيراد منتجات من ملف إكسيل
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseModals">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal-body" style="max-height: 75vh; overflow-y: auto;">
+                @if (!string.IsNullOrEmpty(importErrorMessage))
+                {
+                    <div style="background: rgba(239, 68, 68, 0.15); border-right: 4px solid var(--accent-red); color: var(--accent-red); padding: 0.75rem 1rem; border-radius: 0.4rem; margin-bottom: 1rem; font-size: 0.9rem;">
+                        <i class="fa-solid fa-circle-exclamation me-1"></i> @importErrorMessage
+                    </div>
+                }
+
+                <div style="margin-bottom: 1.25rem;">
+                    <label class="form-label" style="font-weight: 600;">اختر ملف الإكسيل (.xlsx, .xls, .csv)</label>
+                    <InputFile OnChange="OnImportFileSelected" accept=".xlsx,.xls,.csv" class="form-control" style="padding: 0.5rem;" />
+                    @if (!string.IsNullOrEmpty(selectedImportFileName))
+                    {
+                        <div style="margin-top: 0.4rem; font-size: 0.85rem; color: var(--accent-emerald);">
+                            <i class="fa-solid fa-file-circle-check me-1"></i> الملف المحدد: <strong>@selectedImportFileName</strong> (@(selectedImportFileBytes?.Length / 1024 ?? 0) KB)
+                        </div>
+                    }
+                </div>
+
+                <div style="background: rgba(255,255,255,0.03); padding: 0.85rem; border-radius: 0.5rem; border: 1px dashed rgba(255,255,255,0.1); margin-bottom: 1.25rem;">
+                    <label style="display: flex; align-items: center; gap: 0.6rem; cursor: pointer; font-size: 0.9rem; margin-bottom: 0.3rem; font-weight: 600;">
+                        <input type="checkbox" @bind="updateExistingInImport" style="width: 1.1rem; height: 1.1rem;" />
+                        تحديث بيانات المنتج إذا كان الباركود موجواً بالفعل في الكتالوج
+                    </label>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0; padding-right: 1.7rem;">
+                        عند تفعيل هذا الخيار، سيتم تعديل أسعار واسم وتصنيف المنتج الموجود مسبقاً بنفس الباركود بدلاً من تخطيه.
+                    </p>
+                </div>
+
+                @if (importResult != null)
+                {
+                    <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1);">
+                        <h4 style="font-size: 0.95rem; margin-bottom: 0.75rem; color: var(--text-primary);">ملخص نتيجة الاستيراد:</h4>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1rem;">
+                            <div style="background: rgba(255,255,255,0.05); padding: 0.75rem; border-radius: 0.5rem; text-align: center;">
+                                <div style="font-size: 0.8rem; color: var(--text-muted);">إجمالي الصفوف</div>
+                                <div style="font-size: 1.3rem; font-weight: 700;">@importResult.TotalRows</div>
+                            </div>
+                            <div style="background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); padding: 0.75rem; border-radius: 0.5rem; text-align: center;">
+                                <div style="font-size: 0.8rem; color: var(--accent-emerald);">تم استيرادها بنجاح</div>
+                                <div style="font-size: 1.3rem; font-weight: 700; color: var(--accent-emerald);">@importResult.SuccessCount</div>
+                            </div>
+                            <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); padding: 0.75rem; border-radius: 0.5rem; text-align: center;">
+                                <div style="font-size: 0.8rem; color: var(--accent-red);">صفوف بها أخطاء</div>
+                                <div style="font-size: 1.3rem; font-weight: 700; color: var(--accent-red);">@importResult.ErrorCount</div>
+                            </div>
+                        </div>
+
+                        @if (importResult.Errors != null && importResult.Errors.Any())
+                        {
+                            <h5 style="font-size: 0.85rem; color: var(--accent-red); margin-bottom: 0.5rem;">
+                                <i class="fa-solid fa-list-check me-1"></i> قائمة الصفوف غير المستوردة وأسباب الخطأ:
+                            </h5>
+                            <div style="max-height: 200px; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); border-radius: 0.4rem;">
+                                <table class="data-table" style="font-size: 0.8rem;">
+                                    <thead>
+                                        <tr>
+                                            <th>الصف</th>
+                                            <th>الباركود</th>
+                                            <th>الاسم</th>
+                                            <th>سبب الخطأ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var err in importResult.Errors)
+                                        {
+                                            <tr>
+                                                <td>#@err.RowNumber</td>
+                                                <td><code>@err.Barcode</code></td>
+                                                <td>@err.ProductName</td>
+                                                <td style="color: var(--accent-red);">@err.ErrorMessage</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="CloseModals" disabled="@isSaving">إغلاق</button>
+                <button class="btn btn-primary" style="background: #107c41; border-color: #107c41;" @onclick="ExecuteImportExcel" disabled="@(isSaving || selectedImportFileBytes == null)">
+                    @if (isSaving)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري الاستيراد...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-upload me-1"></i> <span>بدء الاستيراد الان</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<ProductDto> products = new();
     private List<ProductDto> filtered = new();
@@ -549,6 +668,7 @@
         showAddModal = false;
         showEditModal = false;
         showDeleteModal = false;
+        showImportModal = false;
         productToDelete = null;
     }
 
@@ -688,5 +808,98 @@
         if (string.IsNullOrWhiteSpace(relativeOrUrl)) return string.Empty;
         if (relativeOrUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || relativeOrUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase)) return relativeOrUrl;
         return $"http://localhost:5000/{relativeOrUrl.TrimStart('/')}";
+    }
+
+    private bool showImportModal = false;
+    private bool updateExistingInImport = false;
+    private byte[]? selectedImportFileBytes;
+    private string? selectedImportFileName;
+    private string importErrorMessage = string.Empty;
+    private ProductImportResultDto? importResult;
+
+    private void OpenImportModal()
+    {
+        selectedImportFileBytes = null;
+        selectedImportFileName = null;
+        importErrorMessage = string.Empty;
+        importResult = null;
+        updateExistingInImport = false;
+        showImportModal = true;
+    }
+
+    private async Task OnImportFileSelected(InputFileChangeEventArgs e)
+    {
+        importErrorMessage = string.Empty;
+        importResult = null;
+        var file = e.File;
+        if (file != null)
+        {
+            if (file.Size > 10 * 1024 * 1024)
+            {
+                importErrorMessage = "حجم الملف يتجاوز الحد الأقصى المسموح به (10 ميجابايت).";
+                return;
+            }
+
+            try
+            {
+                using var stream = file.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024);
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                selectedImportFileBytes = ms.ToArray();
+                selectedImportFileName = file.Name;
+            }
+            catch (Exception ex)
+            {
+                importErrorMessage = $"خطأ في قراءة الملف: {ex.Message}";
+            }
+        }
+    }
+
+    private async Task ExecuteImportExcel()
+    {
+        if (selectedImportFileBytes == null || string.IsNullOrEmpty(selectedImportFileName))
+        {
+            importErrorMessage = "الرجاء اختيار ملف إكسيل أولاً.";
+            return;
+        }
+
+        isSaving = true;
+        importErrorMessage = string.Empty;
+        importResult = null;
+
+        var (res, err) = await ApiClient.ImportProductsExcelAsync(
+            selectedImportFileBytes,
+            selectedImportFileName,
+            updateExistingInImport);
+
+        isSaving = false;
+
+        if (res != null)
+        {
+            importResult = res;
+            await LoadData();
+        }
+        else
+        {
+            importErrorMessage = !string.IsNullOrEmpty(err) ? err : "فشل استيراد ملف الإكسيل.";
+        }
+    }
+
+    private async Task DownloadExcelTemplate()
+    {
+        var bytes = await ApiClient.DownloadProductExcelTemplateAsync();
+        if (bytes != null && bytes.Length > 0)
+        {
+            var base64 = Convert.ToBase64String(bytes);
+            await JS.InvokeVoidAsync(
+                "downloadFileFromBase64",
+                "Products_Import_Template.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                base64);
+        }
+        else
+        {
+            errorMessage = "فشل تحميل قالب الإكسيل من السيرفر.";
+        }
     }
 }
