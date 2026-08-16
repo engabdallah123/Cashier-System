@@ -57,9 +57,9 @@ namespace POS.WebAPI.Controllers.Sales
         }
 
         [HttpGet("{id:guid}/pdf")]
-        public async Task<IActionResult> GetPdf(Guid id, CancellationToken ct)
+        public async Task<IActionResult> GetPdf(Guid id, [FromQuery] bool isThermal = false, CancellationToken ct = default)
         {
-            var result = await _sender.Send(new GetSalePdfQuery(id), ct);
+            var result = await _sender.Send(new GetSalePdfQuery(id, isThermal), ct);
             if (result.IsFailure)
                 return NotFound(result.Error);
 

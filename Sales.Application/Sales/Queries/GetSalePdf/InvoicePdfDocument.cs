@@ -8,15 +8,157 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
     public class InvoicePdfDocument : IDocument
     {
         private readonly ReceiptResponse _receipt;
+        private readonly bool _isThermal;
 
-        public InvoicePdfDocument(ReceiptResponse receipt)
+        public InvoicePdfDocument(ReceiptResponse receipt, bool isThermal = false)
         {
             _receipt = receipt;
+            _isThermal = isThermal;
         }
 
         public DocumentMetadata GetMetadata() => DocumentMetadata.Default;
 
         public void Compose(IDocumentContainer container)
+        {
+            if (_isThermal)
+            {
+                ComposeThermal(container);
+            }
+            else
+            {
+                ComposeA4(container);
+            }
+        }
+
+        private void ComposeThermal(IDocumentContainer container)
+        {
+            container.Page(page =>
+            {
+                page.ContinuousSize(80, Unit.Millimetre);
+                page.Margin(4, Unit.Millimetre);
+                page.PageColor(Colors.White);
+                page.DefaultTextStyle(x => x.FontSize(8).FontFamily("Arial"));
+
+                page.Content().Column(column =>
+                {
+                    // Store Header
+                    column.Item().AlignCenter().Text(_receipt.StoreName).FontSize(13).Bold();
+                    if (!string.IsNullOrWhiteSpace(_receipt.Address))
+                        column.Item().AlignCenter().Text(_receipt.Address).FontSize(7.5f).FontColor(Colors.Grey.Darken2);
+                    if (!string.IsNullOrWhiteSpace(_receipt.Phone))
+                        column.Item().AlignCenter().Text($"Tel: {_receipt.Phone}").FontSize(7.5f).FontColor(Colors.Grey.Darken2);
+
+                    column.Item().PaddingVertical(3).LineHorizontal(1).LineColor(Colors.Black);
+
+                    // Receipt Info
+                    column.Item().AlignCenter().Text("SALES RECEIPT / فاتورة مبيعات").FontSize(9).Bold();
+                    column.Item().Row(row =>
+                    {
+                        row.RelativeItem().Text($"Inv #: {_receipt.InvoiceNumber}").FontSize(8).Bold();
+                        row.RelativeItem().AlignRight().Text($"{_receipt.SaleDate:yyyy/MM/dd HH:mm}").FontSize(7.5f);
+                    });
+
+                    if (!string.IsNullOrWhiteSpace(_receipt.CashierName))
+                        column.Item().Text($"Cashier: {_receipt.CashierName}").FontSize(7.5f);
+                    if (!string.IsNullOrWhiteSpace(_receipt.CustomerName))
+                        column.Item().Text($"Customer: {_receipt.CustomerName}").FontSize(7.5f);
+                    column.Item().Text($"Payment: {_receipt.PaymentMethod}").FontSize(7.5f);
+
+                    column.Item().PaddingVertical(3).LineHorizontal(1).LineColor(Colors.Black);
+
+                    // Items Table
+                    column.Item().Table(table =>
+                    {
+                        table.ColumnsDefinition(columns =>
+                        {
+                            columns.RelativeColumn(3);   // Item
+                            columns.RelativeColumn(1);   // Qty
+                            columns.RelativeColumn(1.5f); // Price
+                            columns.RelativeColumn(1.5f); // Total
+                        });
+
+                        table.Header(header =>
+                        {
+                            header.Cell().Text("Item").Bold().FontSize(7.5f);
+                            header.Cell().AlignRight().Text("Qty").Bold().FontSize(7.5f);
+                            header.Cell().AlignRight().Text("Price").Bold().FontSize(7.5f);
+                            header.Cell().AlignRight().Text("Total").Bold().FontSize(7.5f);
+                        });
+
+                        foreach (var item in _receipt.Items)
+                        {
+                            table.Cell().Text(item.ProductName ?? "Item").FontSize(7.5f);
+                            table.Cell().AlignRight().Text($"{item.Quantity:G29}").FontSize(7.5f);
+                            table.Cell().AlignRight().Text($"{item.UnitPrice:N2}").FontSize(7.5f);
+                            table.Cell().AlignRight().Text($"{item.Total:N2}").FontSize(7.5f).Bold();
+                        }
+                    });
+
+                    column.Item().PaddingVertical(3).LineHorizontal(1).LineColor(Colors.Black);
+
+                    // Totals Summary
+                    column.Item().Row(r =>
+                    {
+                        r.RelativeItem().Text("Subtotal:");
+                        r.ConstantItem(70).AlignRight().Text($"{_receipt.SubTotal:N2} {_receipt.Currency}");
+                    });
+
+                    if (_receipt.DiscountAmount > 0)
+                    {
+                        column.Item().Row(r =>
+                        {
+                            r.RelativeItem().Text("Discount:");
+                            r.ConstantItem(70).AlignRight().Text($"-{_receipt.DiscountAmount:N2} {_receipt.Currency}");
+                        });
+                    }
+
+                    if (_receipt.TaxAmount > 0)
+                    {
+                        column.Item().Row(r =>
+                        {
+                            r.RelativeItem().Text("Tax:");
+                            r.ConstantItem(70).AlignRight().Text($"+{_receipt.TaxAmount:N2} {_receipt.Currency}");
+                        });
+                    }
+
+                    column.Item().PaddingVertical(2).LineHorizontal(1).LineColor(Colors.Black);
+
+                    column.Item().Row(r =>
+                    {
+                        r.RelativeItem().Text("Grand Total:").FontSize(9.5f).Bold();
+                        r.ConstantItem(80).AlignRight().Text($"{_receipt.TotalAmount:N2} {_receipt.Currency}").FontSize(9.5f).Bold();
+                    });
+
+                    if (_receipt.PaidAmount > 0)
+                    {
+                        column.Item().Row(r =>
+                        {
+                            r.RelativeItem().Text("Paid:");
+                            r.ConstantItem(70).AlignRight().Text($"{_receipt.PaidAmount:N2} {_receipt.Currency}");
+                        });
+                        column.Item().Row(r =>
+                        {
+                            r.RelativeItem().Text("Change:");
+                            r.ConstantItem(70).AlignRight().Text($"{_receipt.ChangeAmount:N2} {_receipt.Currency}");
+                        });
+                    }
+
+                    column.Item().PaddingVertical(4).LineHorizontal(1).LineColor(Colors.Black);
+
+                    // Footer message
+                    if (!string.IsNullOrWhiteSpace(_receipt.InvoiceFooterMessage))
+                    {
+                        column.Item().AlignCenter().Text(_receipt.InvoiceFooterMessage).FontSize(7.5f).Italic();
+                    }
+                    else
+                    {
+                        column.Item().AlignCenter().Text("Thank you for your visit! / شكراً لزيارتكم").FontSize(8).Bold();
+                    }
+                });
+            });
+        }
+
+        private void ComposeA4(IDocumentContainer container)
         {
             container
                 .Page(page =>

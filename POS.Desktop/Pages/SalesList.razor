@@ -74,9 +74,14 @@
                             <td>@sale.TaxAmount.ToString("N2") ج.م</td>
                             <td style="color: var(--accent-emerald); font-weight: 700;">@sale.TotalAmount.ToString("N2") ج.م</td>
                             <td style="text-align: center;">
-                                <button class="btn btn-primary" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" @onclick="() => PrintPdf(sale.Id)" title="طباعة الفاتورة">
-                                    <i class="fa-solid fa-print me-1"></i> طباعة
-                                </button>
+                                <div style="display: flex; gap: 0.35rem; justify-content: center;">
+                                    <button class="btn btn-primary" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" @onclick="() => PrintPdf(sale.Id, isThermal: true)" title="طباعة فاتورة حرارية 80mm">
+                                        <i class="fa-solid fa-receipt me-1"></i> حرارية
+                                    </button>
+                                    <button class="btn btn-secondary" style="padding: 0.35rem 0.65rem; font-size: 0.78rem;" @onclick="() => PrintPdf(sale.Id, isThermal: false)" title="طباعة فاتورة A4">
+                                        <i class="fa-solid fa-file-pdf me-1"></i> A4
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     }
@@ -134,11 +139,11 @@
         if (currentPage > maxPage) currentPage = maxPage;
     }
 
-    private async Task PrintPdf(Guid saleId)
+    private async Task PrintPdf(Guid saleId, bool isThermal = false)
     {
         try
         {
-            await Printer.PrintInvoiceAsync(saleId);
+            await Printer.PrintInvoiceAsync(saleId, isThermal);
         }
         catch (Exception ex)
         {

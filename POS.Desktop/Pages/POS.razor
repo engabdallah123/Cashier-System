@@ -279,6 +279,14 @@
                 </div>
 
                 <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label><i class="fa-solid fa-print me-1"></i> نوع طباعة الفاتورة</label>
+                    <select class="form-select" @bind="selectedPrintType">
+                        <option value="thermal">🧾 فاتورة حرارية (80mm)</option>
+                        <option value="a4">📄 فاتورة عادية (A4)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 1.25rem;">
                     <label>المبلغ المدفوع (جنيه)</label>
                     <input type="number" class="form-control" @bind="paidAmount" @bind:event="oninput" style="font-size: 1.15rem; font-weight: 700;" placeholder="0.00" />
                 </div>
@@ -470,6 +478,7 @@
     private bool isLoadingProducts = true;
     private bool showPaymentModal = false;
     private bool isProcessingSale = false;
+    private string selectedPrintType = "thermal";
     private decimal paidAmount = 0;
     private string? saleError;
 
@@ -604,7 +613,8 @@
                 Cart.Clear();
                 ClosePaymentModal();
 
-                await Printer.PrintInvoiceAsync(createdId);
+                bool isThermal = selectedPrintType == "thermal";
+                await Printer.PrintInvoiceAsync(createdId, isThermal);
             }
             else
             {

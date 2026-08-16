@@ -25,7 +25,7 @@ namespace Sales.Application.Sales.Queries.GetSalePdf
             if (receiptResult.IsFailure)
                 return Result<byte[]>.Failure(receiptResult.Error);
 
-            var document = new InvoicePdfDocument(receiptResult.Value!);
+            var document = new InvoicePdfDocument(receiptResult.Value!, request.IsThermal);
             var pdfBytes = document.GeneratePdf();
 
             return Result<byte[]>.Success(pdfBytes);
