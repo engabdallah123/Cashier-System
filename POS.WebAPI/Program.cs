@@ -9,6 +9,7 @@ using Identity.Infrastructre;
 using Identity.Infrastructre.Database;
 using Inventory.Application;
 using Inventory.Infrastructre;
+using Inventory.Infrastructre.Database;
 using POS.Shared.Application;
 using POS.Shared.Infrastructure;
 using POS.WebAPI.Middlewares;
@@ -102,6 +103,7 @@ namespace POS.WebAPI
             await IdentityDataSeeder.SeedAsync(app.Services);
             await SettingsDataSeeder.SeedAsync(app.Services);
             await AuditDataSeeder.SeedAsync(app.Services);
+            await InventoryDataSeeder.SeedAsync(app.Services);
 
             // Enable Swagger UI
             app.UseSwagger();
