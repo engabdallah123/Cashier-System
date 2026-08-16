@@ -108,7 +108,10 @@
     <div class="cart-panel">
         <div class="cart-header">
             <div>
-                <h3 style="font-size: 1.1rem; font-weight: 700;">سلة المبيعات</h3>
+                <h3 style="font-size: 1.1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                    <span>سلة المبيعات</span>
+                    <span style="font-size: 0.75rem; background: var(--accent-indigo); color: white; padding: 0.15rem 0.5rem; border-radius: 1rem; font-weight: 600;">@Cart.Items.Count</span>
+                </h3>
                 <span style="font-size: 0.8rem; color: var(--text-secondary);">العميل: @(Cart.CustomerName == "Walk-in Customer" ? "عميل نقدي" : Cart.CustomerName)</span>
             </div>
             <button class="btn btn-amber" style="padding: 0.35rem 0.65rem; font-size: 0.8rem;" @onclick="OpenCustomerModal">
@@ -127,24 +130,46 @@
             }
             else
             {
-                @foreach (var item in Cart.Items)
-                {
-                    <div class="cart-item">
-                        <div class="cart-item-info">
-                            <div class="cart-item-name">@item.ProductName</div>
-                            <div class="cart-item-price">@item.UnitPrice.ToString("N2") x @item.Quantity = @item.LineTotal.ToString("N2") ج.م</div>
-                        </div>
-
-                        <div class="qty-controls">
-                            <button class="qty-btn" @onclick="() => Cart.UpdateQuantity(item.ProductId, item.Quantity - 1)">-</button>
-                            <span style="font-weight: 600; width: 28px; text-align: center; font-size: 0.9rem;">@item.Quantity</span>
-                            <button class="qty-btn" @onclick="() => Cart.UpdateQuantity(item.ProductId, item.Quantity + 1)">+</button>
-                            <button class="qty-btn" style="background: var(--accent-red); margin-left: 0.3rem;" @onclick="() => Cart.RemoveItem(item.ProductId)">
-                                <i class="fa-solid fa-trash" style="font-size: 0.75rem;"></i>
-                            </button>
-                        </div>
-                    </div>
-                }
+                <table class="cart-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 24px; text-align: center;">#</th>
+                            <th style="text-align: right;">المنتج</th>
+                            <th style="width: 80px; text-align: center;">الكمية</th>
+                            <th style="width: 80px; text-align: left;">الإجمالي</th>
+                            <th style="width: 26px; text-align: center;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{ var idx = 1; }
+                        @foreach (var item in Cart.Items)
+                        {
+                            var currentIndex = idx++;
+                            <tr>
+                                <td style="text-align: center; color: var(--text-muted); font-size: 0.75rem;">@currentIndex</td>
+                                <td>
+                                    <div style="font-weight: 700; color: var(--text-primary); font-size: 0.85rem; line-height: 1.2;">@item.ProductName</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">@item.UnitPrice.ToString("N2") ج.م</div>
+                                </td>
+                                <td style="text-align: center;">
+                                    <div class="qty-controls">
+                                        <button class="qty-btn" @onclick="() => Cart.UpdateQuantity(item.ProductId, item.Quantity - 1)">-</button>
+                                        <span style="font-weight: 700; width: 20px; text-align: center; font-size: 0.85rem; color: var(--accent-amber);">@item.Quantity.ToString("N0")</span>
+                                        <button class="qty-btn" @onclick="() => Cart.UpdateQuantity(item.ProductId, item.Quantity + 1)">+</button>
+                                    </div>
+                                </td>
+                                <td style="text-align: left; font-weight: 700; color: var(--accent-emerald); font-size: 0.86rem;">
+                                    @item.LineTotal.ToString("N2")
+                                </td>
+                                <td style="text-align: center;">
+                                    <button class="qty-btn" style="background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border-color: rgba(239, 68, 68, 0.3);" @onclick="() => Cart.RemoveItem(item.ProductId)" title="حذف">
+                                        <i class="fa-solid fa-xmark" style="font-size: 0.75rem;"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
             }
         </div>
 
@@ -184,7 +209,7 @@
 @if (showPaymentModal)
 {
     <div class="modal-overlay" @onclick="ClosePaymentModal">
-        <div class="modal-card" style="width: 520px;" @onclick:stopPropagation="true">
+        <div class="modal-card" style="width: 580px; max-width: 95vw;" @onclick:stopPropagation="true">
             <div class="modal-header">
                 <h3 class="modal-title">
                     <i class="fa-solid fa-cash-register me-2" style="color: var(--accent-emerald);"></i>
@@ -195,13 +220,50 @@
                 </button>
             </div>
 
-            <div class="modal-body">
+            <div class="modal-body" style="max-height: 82vh; overflow-y: auto;">
                 @if (!string.IsNullOrEmpty(saleError))
                 {
                     <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.75rem 1rem; border-radius: 0.5rem; margin-bottom: 1.25rem; font-size: 0.85rem;">
                         <i class="fa-solid fa-circle-exclamation me-1"></i> @saleError
                     </div>
                 }
+
+                <!-- Customer & Products Review Section -->
+                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color-light); border-radius: 0.75rem; padding: 0.9rem 1rem; margin-bottom: 1.25rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 0.5rem;">
+                        <div style="font-weight: 700; font-size: 0.9rem; color: var(--accent-indigo); display: flex; align-items: center; gap: 0.5rem;">
+                            <i class="fa-solid fa-list-check"></i>
+                            <span>مراجعة منتجات الفاتورة (@Cart.Items.Count منتج)</span>
+                        </div>
+                        <span style="font-size: 0.78rem; color: var(--text-secondary); background: rgba(99, 102, 241, 0.12); padding: 0.25rem 0.65rem; border-radius: 1rem; border: 1px solid rgba(99, 102, 241, 0.2);">
+                            <i class="fa-solid fa-user me-1"></i> @(Cart.CustomerName == "Walk-in Customer" ? "عميل نقدي" : Cart.CustomerName)
+                        </span>
+                    </div>
+
+                    <div style="max-height: 170px; overflow-y: auto; padding-left: 0.3rem;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                            <thead>
+                                <tr style="color: var(--text-secondary); text-align: right; border-bottom: 1px dashed rgba(255, 255, 255, 0.15);">
+                                    <th style="padding: 0.4rem 0.25rem; font-weight: 600;">المنتج</th>
+                                    <th style="padding: 0.4rem 0.25rem; text-align: center; font-weight: 600;">الكمية</th>
+                                    <th style="padding: 0.4rem 0.25rem; text-align: center; font-weight: 600;">سعر الوحدة</th>
+                                    <th style="padding: 0.4rem 0.25rem; text-align: left; font-weight: 600;">الإجمالي</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in Cart.Items)
+                                {
+                                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+                                        <td style="padding: 0.5rem 0.25rem; font-weight: 600; color: var(--text-primary);">@item.ProductName</td>
+                                        <td style="padding: 0.5rem 0.25rem; text-align: center; color: var(--accent-amber); font-weight: 700;">@item.Quantity.ToString("N0")</td>
+                                        <td style="padding: 0.5rem 0.25rem; text-align: center; color: var(--text-secondary);">@item.UnitPrice.ToString("N2") ج.م</td>
+                                        <td style="padding: 0.5rem 0.25rem; text-align: left; font-weight: 700; color: var(--accent-emerald);">@item.LineTotal.ToString("N2") ج.م</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
 
                 <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 1rem 1.25rem; border-radius: 0.75rem; border: 1px solid var(--border-color-light); margin-bottom: 1.25rem;">
                     <span style="font-size: 1rem; font-weight: 600; color: var(--text-secondary);">المبلغ المطلوب:</span>
