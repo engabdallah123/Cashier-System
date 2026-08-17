@@ -85,6 +85,8 @@
         string.Equals(AuthState.UserRole, "Manager", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(AuthState.UserRole, "Administrator", StringComparison.OrdinalIgnoreCase);
 
+    private DotNetObjectReference<MainLayout>? _dotNetRef;
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -94,13 +96,23 @@
                 var theme = await JS.InvokeAsync<string>("getAppTheme");
                 isDarkMode = theme != "light";
                 await JS.InvokeVoidAsync("setAppTheme", isDarkMode ? "dark" : "light");
+
+                _dotNetRef = DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("initGlobalNavigationShortcuts", _dotNetRef);
+
                 StateHasChanged();
             }
             catch
             {
-                // Fallback to dark theme if JS call fails during startup
+                // Fallback if JS call fails during startup
             }
         }
+    }
+
+    [JSInvokable]
+    public void NavigateFromShortcut(string route)
+    {
+        Nav.NavigateTo(route);
     }
 
     protected override void OnInitialized()
@@ -129,6 +141,7 @@
 
     public void Dispose()
     {
+        _dotNetRef?.Dispose();
         ShiftState.OnShiftStateChanged -= StateHasChanged;
         AuthState.AuthenticationStateChanged -= OnAuthStateChanged;
     }

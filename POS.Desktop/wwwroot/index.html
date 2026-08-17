@@ -201,6 +201,34 @@
         function escapeHtml(str) {
             return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
+
+        window.initGlobalNavigationShortcuts = function (dotNetHelper) {
+            document.addEventListener('keydown', function (e) {
+                if (!e.ctrlKey && !e.metaKey) return;
+
+                const key = (e.key || '').toLowerCase();
+                const ctrlKeyMap = {
+                    'p': 'pos',         // Ctrl + P -> POS (شاشة البيع)
+                    'm': 'products',    // Ctrl + M -> Montajat / المخزون (المنتجات)
+                    'c': 'price-check', // Ctrl + C -> Check Price (استعلام الأسعار)
+                    's': 'shifts',      // Ctrl + S -> Shifts (الورديات والخزينة)
+                    'l': 'sales',       // Ctrl + L -> Sales List (سجل المبيعات)
+                    'u': 'purchases',   // Ctrl + U -> Purchases (المشتريات)
+                    'e': 'expenses',    // Ctrl + E -> Expenses (المصروفات)
+                    'h': '',            // Ctrl + H -> Home (الصفحة الرئيسية)
+                    'd': 'dashboard'    // Ctrl + D -> Dashboard (لوحة البيانات)
+                };
+
+                if (ctrlKeyMap[key] !== undefined) {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    if (dotNetHelper) {
+                        dotNetHelper.invokeMethodAsync('NavigateFromShortcut', ctrlKeyMap[key]);
+                    }
+                }
+            }, true);
+        };
     </script>
 </body>
 </html>
