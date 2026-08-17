@@ -2037,4 +2037,118 @@ kbd {
     }
 }
 
+/* Action Dropdown Menu */
+.action-dropdown-container {
+    position: relative;
+    display: inline-block;
+}
+
+.action-dropdown-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border-radius: 0.45rem;
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    color: var(--accent-indigo);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-dropdown-btn:hover, .action-dropdown-btn.active {
+    background: var(--accent-indigo);
+    color: #ffffff;
+    border-color: var(--accent-indigo);
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.35);
+}
+
+.action-dropdown-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 999;
+    background: transparent;
+}
+
+.action-dropdown-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 175px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color-light);
+    border-radius: 0.6rem;
+    padding: 0.35rem;
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    animation: dropdownFadeIn 0.15s ease-out;
+}
+
+.action-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border-radius: 0.4rem;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+    width: 100%;
+    text-align: right;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.action-dropdown-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.action-dropdown-item.item-primary:hover {
+    background: rgba(56, 189, 248, 0.15);
+    color: var(--accent-blue);
+}
+
+.action-dropdown-item.item-success:hover {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--accent-emerald);
+}
+
+.action-dropdown-item.item-warning:hover {
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--accent-amber);
+}
+
+.action-dropdown-item.item-danger:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--accent-red);
+}
+
+.action-dropdown-divider {
+    height: 1px;
+    background: var(--border-color);
+    margin: 0.2rem 0;
+}
+
+@keyframes dropdownFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+
 

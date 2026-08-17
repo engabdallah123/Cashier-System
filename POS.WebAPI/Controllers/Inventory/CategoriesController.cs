@@ -1,4 +1,6 @@
+using Inventory.Application.Catalog.Categories.Commands.ActivateCategory;
 using Inventory.Application.Catalog.Categories.Commands.CreateCategory;
+using Inventory.Application.Catalog.Categories.Commands.DeactivateCategory;
 using Inventory.Application.Catalog.Categories.Commands.DeleteCategory;
 using Inventory.Application.Catalog.Categories.Commands.UpdateCategory;
 using Inventory.Application.Catalog.Categories.Queries.GetCategories;
@@ -38,6 +40,28 @@ namespace POS.WebAPI.Controllers.Inventory
                 return BadRequest("ID in URL does not match request body.");
 
             var result = await _sender.Send(command, ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return NoContent();
+        }
+
+        [HttpPut("{id:guid}/activate")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Activate(Guid id, CancellationToken ct)
+        {
+            var result = await _sender.Send(new ActivateCategoryCommand(id), ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return NoContent();
+        }
+
+        [HttpPut("{id:guid}/deactivate")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Deactivate(Guid id, CancellationToken ct)
+        {
+            var result = await _sender.Send(new DeactivateCategoryCommand(id), ct);
             if (result.IsFailure)
                 return BadRequest(result.Error);
 

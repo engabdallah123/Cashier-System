@@ -147,5 +147,19 @@ namespace Inventory.Domain.Catalog.Products.Entities
         }
 
         public bool IsLowStock() => QuantityInStock <= ReorderLevel;
+
+        public Result Activate()
+        {
+            IsActive = true;
+            UpdatedAt = DateTime.UtcNow;
+            return Result.Success();
+        }
+
+        public Result Deactivate()
+        {
+            IsActive = false;
+            UpdatedAt = DateTime.UtcNow;
+            return Result.Success();
+        }
     }
 }

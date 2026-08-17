@@ -257,6 +257,22 @@ namespace POS.Desktop.Services.Api
             }
         }
 
+        public async Task<(bool Success, string? Error)> ToggleProductStatusAsync(Guid productId, bool activate)
+        {
+            try
+            {
+                var endpoint = activate ? $"api/inventory/products/{productId}/activate" : $"api/inventory/products/{productId}/deactivate";
+                var res = await _http.PutAsync(endpoint, null);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل تغيير حالة المنتج."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
         // Categories & Units
         public async Task<List<CategoryDto>> GetCategoriesAsync()
         {
@@ -293,6 +309,22 @@ namespace POS.Desktop.Services.Api
             catch
             {
                 return false;
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> ToggleCategoryStatusAsync(Guid categoryId, bool activate)
+        {
+            try
+            {
+                var endpoint = activate ? $"api/inventory/categories/{categoryId}/activate" : $"api/inventory/categories/{categoryId}/deactivate";
+                var res = await _http.PutAsync(endpoint, null);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل تغيير حالة التصنيف."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
             }
         }
 

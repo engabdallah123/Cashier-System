@@ -1,4 +1,6 @@
+using Inventory.Application.Catalog.Products.Commands.ActivateProduct;
 using Inventory.Application.Catalog.Products.Commands.CreateProduct;
+using Inventory.Application.Catalog.Products.Commands.DeactivateProduct;
 using Inventory.Application.Catalog.Products.Commands.DeleteProduct;
 using Inventory.Application.Catalog.Products.Commands.ImportProductsFromExcel;
 using Inventory.Application.Catalog.Products.Commands.UpdateProduct;
@@ -97,6 +99,28 @@ namespace POS.WebAPI.Controllers.Inventory
                 return BadRequest("Product ID mismatch.");
 
             var result = await _sender.Send(command, ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return NoContent();
+        }
+
+        [HttpPut("{id:guid}/activate")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Activate(Guid id, CancellationToken ct)
+        {
+            var result = await _sender.Send(new ActivateProductCommand(id), ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return NoContent();
+        }
+
+        [HttpPut("{id:guid}/deactivate")]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Deactivate(Guid id, CancellationToken ct)
+        {
+            var result = await _sender.Send(new DeactivateProductCommand(id), ct);
             if (result.IsFailure)
                 return BadRequest(result.Error);
 

@@ -76,7 +76,7 @@
                                 }
                             </td>
                             <td>
-                                <span class="badge @(cat.IsActive ? "badge-green" : "badge-red")">
+                                <span class="badge @(cat.IsActive ? "badge-green" : "badge-red")" style="cursor: pointer;" @onclick="() => ToggleCategoryStatus(cat)" title="اضغط لتغيير حالة النشاط">
                                     <i class="fa-solid fa-circle" style="font-size: 0.45rem;"></i>
                                     @(cat.IsActive ? "نشط" : "غير نشط")
                                 </span>
@@ -85,13 +85,31 @@
                             @if (AuthState.UserRole == "Admin")
                             {
                                 <td style="text-align: center;">
-                                    <div style="display: flex; gap: 0.35rem; justify-content: center;">
-                                        <button class="btn btn-secondary" style="padding: 0.3rem 0.5rem; font-size: 0.8rem;" @onclick="() => OpenEditModal(cat)" title="تعديل التصنيف">
-                                            <i class="fa-solid fa-pen-to-square"></i>
+                                    <div class="action-dropdown-container">
+                                        <button class="action-dropdown-btn @(activeMenuCategoryId == cat.Id ? "active" : "")" @onclick="() => ToggleCategoryMenu(cat.Id)">
+                                            <i class="fa-solid fa-sliders"></i>
+                                            <span>خيارات</span>
+                                            <i class="fa-solid fa-chevron-down" style="font-size: 0.65rem;"></i>
                                         </button>
-                                        <button class="btn btn-danger" style="padding: 0.3rem 0.5rem; font-size: 0.8rem;" @onclick="() => ConfirmDeleteCategory(cat)" title="حذف التصنيف">
-                                            <i class="fa-solid fa-trash-can"></i>
-                                        </button>
+                                        @if (activeMenuCategoryId == cat.Id)
+                                        {
+                                            <div class="action-dropdown-backdrop" @onclick="CloseCategoryMenu"></div>
+                                            <div class="action-dropdown-menu" @onclick:stopPropagation="true">
+                                                <button class="action-dropdown-item item-primary" @onclick="() => { CloseCategoryMenu(); OpenEditModal(cat); }">
+                                                    <i class="fa-solid fa-pen-to-square" style="color: var(--accent-blue);"></i>
+                                                    <span>تعديل البيانات</span>
+                                                </button>
+                                                <button class="action-dropdown-item @(cat.IsActive ? "item-warning" : "item-success")" @onclick="() => ToggleCategoryStatus(cat)">
+                                                    <i class="fa-solid @(cat.IsActive ? "fa-ban" : "fa-circle-check")" style="color: @(cat.IsActive ? "var(--accent-amber)" : "var(--accent-emerald)");"></i>
+                                                    <span>@(cat.IsActive ? "تعطيل التصنيف" : "تفعيل التصنيف")</span>
+                                                </button>
+                                                <div class="action-dropdown-divider"></div>
+                                                <button class="action-dropdown-item item-danger" @onclick="() => { CloseCategoryMenu(); ConfirmDeleteCategory(cat); }">
+                                                    <i class="fa-solid fa-trash-can" style="color: var(--accent-red);"></i>
+                                                    <span>حذف التصنيف</span>
+                                                </button>
+                                            </div>
+                                        }
                                     </div>
                                 </td>
                             }
@@ -366,6 +384,35 @@
         else
         {
             errorMessage = "فشل حذف التصنيف. يرجى التأكد من عدم وجود منتجات مرتبطة بهذا التصنيف.";
+        }
+    }
+
+    private Guid? activeMenuCategoryId;
+
+    private void ToggleCategoryMenu(Guid catId)
+    {
+        if (activeMenuCategoryId == catId)
+            activeMenuCategoryId = null;
+        else
+            activeMenuCategoryId = catId;
+    }
+
+    private void CloseCategoryMenu()
+    {
+        activeMenuCategoryId = null;
+    }
+
+    private async Task ToggleCategoryStatus(CategoryDto cat)
+    {
+        CloseCategoryMenu();
+        var (success, error) = await ApiClient.ToggleCategoryStatusAsync(cat.Id, !cat.IsActive);
+        if (success)
+        {
+            await LoadCategories();
+        }
+        else
+        {
+            errorMessage = !string.IsNullOrEmpty(error) ? error : "فشل تغيير حالة التصنيف.";
         }
     }
 }
