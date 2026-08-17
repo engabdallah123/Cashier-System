@@ -222,8 +222,9 @@
                     return;
                 }
 
-                // Global shortcut for Calculator: F10 or Alt + C or Ctrl + Alt + C
-                if (e.key === 'F10' || (e.altKey && (e.key === 'c' || e.key === 'C' || e.key === 'ؤ')) || (e.ctrlKey && e.altKey && (e.key === 'c' || e.key === 'C'))) {
+                // Global shortcut for Calculator: F10 or Alt + C
+                const isAltC = e.altKey && (e.key === 'c' || e.key === 'C' || e.key === 'ؤ' || e.code === 'KeyC');
+                if (e.key === 'F10' || isAltC) {
                     e.preventDefault();
                     e.stopPropagation();
                     if (dotNetHelper) {
@@ -275,28 +276,43 @@
                     }
                 }
 
-                if (!e.ctrlKey && !e.metaKey) return;
+                // Global Navigation Shortcuts with Alt + [Key]
+                if (!e.altKey || e.ctrlKey || e.metaKey) return;
 
+                const code = e.code || '';
                 const key = (e.key || '').toLowerCase();
-                const ctrlKeyMap = {
-                    'p': 'pos',         // Ctrl + P -> POS (شاشة البيع)
-                    'm': 'products',    // Ctrl + M -> Montajat / المخزون (المنتجات)
-                    'c': 'price-check', // Ctrl + C -> Check Price (استعلام الأسعار)
-                    's': 'shifts',      // Ctrl + S -> Shifts (الورديات والخزينة)
-                    'l': 'sales',       // Ctrl + L -> Sales List (سجل المبيعات)
-                    'u': 'purchases',   // Ctrl + U -> Purchases (المشتريات)
-                    'e': 'expenses',    // Ctrl + E -> Expenses (المصروفات)
-                    'h': '',            // Ctrl + H -> Home (الصفحة الرئيسية)
-                    'd': 'dashboard'    // Ctrl + D -> Dashboard (لوحة البيانات)
+                const altKeyMap = {
+                    'p': 'pos',         // Alt + P -> POS (شاشة البيع)
+                    'KeyP': 'pos',
+                    'm': 'products',    // Alt + M -> Montajat / المخزون (المنتجات)
+                    'KeyM': 'products',
+                    'b': 'price-check', // Alt + B -> Barcode / Check Price (استعلام الأسعار)
+                    'KeyB': 'price-check',
+                    'k': 'price-check', // Alt + K -> Check Price (استعلام الأسعار)
+                    'KeyK': 'price-check',
+                    's': 'shifts',      // Alt + S -> Shifts (الورديات والخزينة)
+                    'KeyS': 'shifts',
+                    'l': 'sales',       // Alt + L -> Sales List (سجل المبيعات)
+                    'KeyL': 'sales',
+                    'u': 'purchases',   // Alt + U -> Purchases (المشتريات)
+                    'KeyU': 'purchases',
+                    'e': 'expenses',    // Alt + E -> Expenses (المصروفات)
+                    'KeyE': 'expenses',
+                    'h': '',            // Alt + H -> Home (الصفحة الرئيسية)
+                    'KeyH': '',
+                    'd': 'dashboard',   // Alt + D -> Dashboard (لوحة البيانات)
+                    'KeyD': 'dashboard'
                 };
 
-                if (ctrlKeyMap[key] !== undefined) {
+                const targetRoute = altKeyMap[key] !== undefined ? altKeyMap[key] : altKeyMap[code];
+
+                if (targetRoute !== undefined) {
                     e.preventDefault();
                     e.stopPropagation();
                     e.stopImmediatePropagation();
 
                     if (dotNetHelper) {
-                        dotNetHelper.invokeMethodAsync('OpenQuickWindow', ctrlKeyMap[key]);
+                        dotNetHelper.invokeMethodAsync('OpenQuickWindow', targetRoute);
                     }
                 }
             }, { capture: true });
@@ -304,7 +320,7 @@
 
         window.initPosPageShortcuts = function (dotNetHelper) {
             document.addEventListener('keydown', function (e) {
-                if (e.ctrlKey || e.metaKey) return;
+                if (e.ctrlKey || e.altKey || e.metaKey) return;
 
                 const isPosPage = window.location.pathname.endsWith('/pos') || window.location.pathname.endsWith('pos') || window.location.pathname === '/';
                 if (!isPosPage) return;
