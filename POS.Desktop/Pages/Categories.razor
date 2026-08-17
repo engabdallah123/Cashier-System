@@ -12,7 +12,7 @@
             <h2 class="page-title">إدارة التصنيفات</h2>
             <p class="page-subtitle">تنظيم المنتجات في تصنيفات رئيسية وفرعية</p>
         </div>
-        @if (AuthState.UserRole == "Admin")
+        @if (CanManageCategories)
         {
             <button class="btn btn-primary" @onclick="OpenAddModal">
                 <i class="fa-solid fa-plus me-1"></i> إضافة تصنيف جديد
@@ -39,7 +39,7 @@
                     <th>التصنيف الرئيسي</th>
                     <th>الحالة</th>
                     <th>تاريخ الإنشاء</th>
-                    @if (AuthState.UserRole == "Admin")
+                    @if (CanManageCategories)
                     {
                         <th style="width: 120px; text-align: center;">الإجراءات</th>
                     }
@@ -49,7 +49,7 @@
                 @if (!filteredCategories.Any())
                 {
                     <tr>
-                        <td colspan="@(AuthState.UserRole == "Admin" ? 6 : 5)" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                        <td colspan="@(CanManageCategories ? 6 : 5)" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
                             <i class="fa-solid fa-folder-open" style="font-size: 2rem; margin-bottom: 0.5rem; display: block;"></i>
                             لا توجد تصنيفات حالياً.
                         </td>
@@ -82,7 +82,7 @@
                                 </span>
                             </td>
                             <td>@(cat.CreatedAt == default ? "-" : cat.CreatedAt.ToString("yyyy-MM-dd HH:mm"))</td>
-                            @if (AuthState.UserRole == "Admin")
+                            @if (CanManageCategories)
                             {
                                 <td style="text-align: center;">
                                     <div class="action-dropdown-container">
@@ -219,6 +219,12 @@
 }
 
 @code {
+    private bool CanManageCategories =>
+        string.Equals(AuthState.UserRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(AuthState.UserRole, "Cashier", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(AuthState.UserRole, "Manager", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(AuthState.UserRole, "Administrator", StringComparison.OrdinalIgnoreCase);
+
     private List<CategoryDto> categories = new();
     private List<CategoryDto> filteredCategories = new();
 

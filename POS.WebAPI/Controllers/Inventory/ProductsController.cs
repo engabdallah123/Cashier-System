@@ -51,7 +51,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpPost]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Manager,Cashier")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> Create([FromForm] CreateProductRequest request, CancellationToken ct)
         {
@@ -81,7 +81,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpPost("json")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Manager,Cashier")]
         public async Task<IActionResult> CreateJson([FromBody] CreateProductCommand command, CancellationToken ct)
         {
             var result = await _sender.Send(command, ct);
@@ -92,7 +92,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpPut("{id:guid}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Manager,Cashier")]
         public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProductCommand command, CancellationToken ct)
         {
             if (id != command.Id)
@@ -106,7 +106,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpPut("{id:guid}/activate")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Manager,Cashier")]
         public async Task<IActionResult> Activate(Guid id, CancellationToken ct)
         {
             var result = await _sender.Send(new ActivateProductCommand(id), ct);
@@ -117,7 +117,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpPut("{id:guid}/deactivate")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Manager,Cashier")]
         public async Task<IActionResult> Deactivate(Guid id, CancellationToken ct)
         {
             var result = await _sender.Send(new DeactivateProductCommand(id), ct);
@@ -128,7 +128,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpDelete("{id:guid}")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Manager,Cashier")]
         public async Task<IActionResult> Delete(Guid id, CancellationToken ct)
         {
             var result = await _sender.Send(new DeleteProductCommand(id), ct);
@@ -169,7 +169,7 @@ namespace POS.WebAPI.Controllers.Inventory
         }
 
         [HttpPost("import-excel")]
-        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Admin,Manager,Cashier")]
         public async Task<IActionResult> ImportExcel(IFormFile file, [FromQuery] bool updateExisting = false, CancellationToken ct = default)
         {
             if (file == null || file.Length == 0)
