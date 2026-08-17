@@ -4,6 +4,7 @@
 @using global::POS.Desktop.Pages
 @inject CustomAuthStateProvider AuthState
 @inject ShiftStateContainer ShiftState
+@inject CalculatorStateContainer CalcState
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 
@@ -37,16 +38,23 @@
 
     <div class="main-content">
         <header class="top-bar">
-            <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
                 <span class="badge @(ShiftState.IsShiftOpen ? "badge-green" : "badge-red")">
                     <i class="fa-solid fa-circle" style="font-size: 0.5rem;"></i>
                     @(ShiftState.IsShiftOpen ? $"الوردية مفتوحة (#{ShiftState.ShiftId.ToString()[..6]})" : "الوردية مغلقة")
                 </span>
 
                 <!-- Price Check Top Bar Button (Opens Window Popup on Top of Page) -->
-                <button type="button" class="topbar-btn-price" @onclick='() => OpenQuickWindow("price-check")' title="استعلام فوري عن سعر منتج بالباركود بدون مغادرة الشاشة الحالية">
+                <button type="button" class="topbar-btn-price" @onclick='() => OpenQuickWindow("price-check")' title="استعلام فوري عن سعر منتج بالباركود [Ctrl + C]">
                     <i class="fa-solid fa-barcode"></i>
                     <span>الاستعلام عن السعر</span>
+                </button>
+
+                <!-- Professional Smart Calculator Top Bar Button -->
+                <button type="button" class="topbar-btn-calc" @onclick="() => CalcState.Toggle()" title="آلة حاسبة ذكية وسريعة [F10 / Alt + C]">
+                    <i class="fa-solid fa-calculator"></i>
+                    <span>آلة حاسبة</span>
+                    <span class="calc-shortcut-kbd">F10</span>
                 </button>
             </div>
 
@@ -129,6 +137,9 @@
     </div>
 }
 
+<!-- Standalone Global Smart Calculator Modal Window -->
+<CalculatorModal />
+
 @code {
     private bool isDarkMode = true;
     private string? activeModalRoute;
@@ -178,8 +189,22 @@
     }
 
     [JSInvokable]
+    public void ToggleCalculatorModal()
+    {
+        CalcState.Toggle();
+        StateHasChanged();
+    }
+
+    [JSInvokable]
     public void OnGlobalEscPressed()
     {
+        if (CalcState.IsOpen)
+        {
+            CalcState.Close();
+            StateHasChanged();
+            return;
+        }
+
         if (!string.IsNullOrEmpty(activeModalRoute))
         {
             activeModalRoute = null;
@@ -230,6 +255,7 @@
     protected override void OnInitialized()
     {
         ShiftState.OnShiftStateChanged += StateHasChanged;
+        CalcState.OnStateChanged += StateHasChanged;
         AuthState.AuthenticationStateChanged += OnAuthStateChanged;
     }
 
@@ -255,6 +281,7 @@
     {
         _dotNetRef?.Dispose();
         ShiftState.OnShiftStateChanged -= StateHasChanged;
+        CalcState.OnStateChanged -= StateHasChanged;
         AuthState.AuthenticationStateChanged -= OnAuthStateChanged;
     }
 }

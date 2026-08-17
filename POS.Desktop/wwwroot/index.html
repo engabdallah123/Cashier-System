@@ -212,9 +212,66 @@
 
         window.initGlobalNavigationShortcuts = function (dotNetHelper) {
             window.addEventListener('keydown', function (e) {
+                // Check if Calculator is currently open on screen
+                const isCalcOpen = document.querySelector('.calculator-modal-backdrop') !== null;
+
                 if (e.key === 'Escape') {
                     if (dotNetHelper) {
                         dotNetHelper.invokeMethodAsync('OnGlobalEscPressed');
+                    }
+                    return;
+                }
+
+                // Global shortcut for Calculator: F10 or Alt + C or Ctrl + Alt + C
+                if (e.key === 'F10' || (e.altKey && (e.key === 'c' || e.key === 'C' || e.key === 'ؤ')) || (e.ctrlKey && e.altKey && (e.key === 'c' || e.key === 'C'))) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (dotNetHelper) {
+                        dotNetHelper.invokeMethodAsync('ToggleCalculatorModal');
+                    }
+                    return;
+                }
+
+                // If calculator is active and user types numbers or math operators, forward to calculator
+                if (isCalcOpen) {
+                    const validCalcKeys = ['0','1','2','3','4','5','6','7','8','9','.','+','-','*','/','Enter','=','Backspace','Delete','c','C'];
+                    if (validCalcKeys.includes(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey) {
+                        // Let Calculator modal handle it via button click / dispatch
+                        const key = e.key;
+                        const calcEl = document.querySelector('.calculator-modal-container');
+                        if (calcEl) {
+                            if (key >= '0' && key <= '9') {
+                                const btn = Array.from(calcEl.querySelectorAll('.calc-btn.num')).find(b => b.textContent.trim() === key);
+                                if (btn) { btn.click(); e.preventDefault(); return; }
+                            } else if (key === '.') {
+                                const btn = Array.from(calcEl.querySelectorAll('.calc-btn.num')).find(b => b.textContent.trim() === '.');
+                                if (btn) { btn.click(); e.preventDefault(); return; }
+                            } else if (key === '+') {
+                                const btn = Array.from(calcEl.querySelectorAll('.calc-btn.op')).find(b => b.textContent.trim() === '+');
+                                if (btn) { btn.click(); e.preventDefault(); return; }
+                            } else if (key === '-') {
+                                const btn = Array.from(calcEl.querySelectorAll('.calc-btn.op')).find(b => b.textContent.trim() === '−');
+                                if (btn) { btn.click(); e.preventDefault(); return; }
+                            } else if (key === '*') {
+                                const btn = Array.from(calcEl.querySelectorAll('.calc-btn.op')).find(b => b.textContent.trim() === '×');
+                                if (btn) { btn.click(); e.preventDefault(); return; }
+                            } else if (key === '/') {
+                                const btn = Array.from(calcEl.querySelectorAll('.calc-btn.op')).find(b => b.textContent.trim() === '÷');
+                                if (btn) { btn.click(); e.preventDefault(); return; }
+                            } else if (key === 'Enter' || key === '=') {
+                                const btn = calcEl.querySelector('.calc-btn.equals');
+                                if (btn) { btn.click(); e.preventDefault(); return; }
+                            } else if (key === 'Backspace') {
+                                const btn = calcEl.querySelector('.calc-btn.backspace');
+                                if (btn) { btn.click(); e.preventDefault(); return; }
+                            } else if (key === 'Delete') {
+                                const btn = calcEl.querySelector('.calc-btn.clear-entry');
+                                if (btn) { btn.click(); e.preventDefault(); return; }
+                            } else if (key === 'c' || key === 'C') {
+                                const btn = calcEl.querySelector('.calc-btn.clear-all');
+                                if (btn) { btn.click(); e.preventDefault(); return; }
+                            }
+                        }
                     }
                 }
 
