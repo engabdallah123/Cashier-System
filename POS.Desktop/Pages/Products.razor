@@ -106,7 +106,7 @@
                                         {
                                             <div class="action-dropdown-backdrop" @onclick="CloseProductMenu"></div>
                                             <div class="action-dropdown-menu" @onclick:stopPropagation="true">
-                                                <button class="action-dropdown-item item-primary" @onclick="() => { CloseProductMenu(); OpenBarcodeModal(prod); }">
+                                                <button class="action-dropdown-item item-primary" @onclick="async () => { CloseProductMenu(); await OpenBarcodeModal(prod); }">
                                                     <i class="fa-solid fa-barcode" style="color: var(--accent-blue);"></i>
                                                     <span>طباعة الباركود</span>
                                                 </button>
