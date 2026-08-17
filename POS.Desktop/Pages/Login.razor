@@ -63,7 +63,7 @@
                 var role = string.IsNullOrWhiteSpace(res.Role) ? "Cashier" : res.Role;
                 Guid.TryParse(res.UserId, out var userId);
                 AuthState.MarkUserAsAuthenticated(res.AccessToken, res.FullName ?? string.Empty, role, userId);
-                Nav.NavigateTo(role == "Admin" ? "/dashboard" : "/");
+                Nav.NavigateTo("/");
             }
             else
             {

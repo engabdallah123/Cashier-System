@@ -10,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/app.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 </head>
 
 <body>
@@ -80,6 +81,125 @@
                 arr[i] = binStr.charCodeAt(i);
             }
             return new Blob([arr], { type: type });
+        }
+
+        window.renderBarcodeSvg = function (targetElementId, barcodeText) {
+            if (window.JsBarcode && barcodeText) {
+                try {
+                    JsBarcode("#" + targetElementId, barcodeText, {
+                        format: "CODE128",
+                        width: 1.8,
+                        height: 45,
+                        displayValue: true,
+                        fontSize: 12,
+                        margin: 4
+                    });
+                } catch (e) {
+                    console.error("Barcode render error:", e);
+                }
+            }
+        };
+
+        window.printBarcodeLabels = function (productName, barcodeValue, priceText, quantity, storeName, showPrice) {
+            const qty = Math.max(1, parseInt(quantity) || 1);
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = '0';
+            document.body.appendChild(iframe);
+
+            const doc = iframe.contentWindow.document;
+            let labelsHtml = '';
+            for (let i = 0; i < qty; i++) {
+                labelsHtml += `
+                <div class="sticker-card">
+                    <div class="sticker-header">${escapeHtml(storeName || '')}</div>
+                    <div class="sticker-title">${escapeHtml(productName || '')}</div>
+                    <svg id="barcode-svg-${i}"></svg>
+                    ${showPrice ? `<div class="sticker-price">${escapeHtml(priceText || '')}</div>` : ''}
+                </div>`;
+            }
+
+            doc.open();
+            doc.write(`
+                <!DOCTYPE html>
+                <html dir="rtl">
+                <head>
+                    <meta charset="utf-8" />
+                    <title>طباعة ملصقات الباركود</title>
+                    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"><\/script>
+                    <style>
+                        @page { margin: 0; size: auto; }
+                        body { margin: 0; padding: 4px; font-family: 'Cairo', 'Arial', sans-serif; direction: rtl; background: #fff; color: #000; }
+                        .stickers-container { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-start; }
+                        .sticker-card {
+                            width: 48mm;
+                            height: 28mm;
+                            border: 1px dashed #bbb;
+                            padding: 1.5mm;
+                            box-sizing: border-box;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            justify-content: space-between;
+                            text-align: center;
+                            page-break-inside: avoid;
+                            background: #fff;
+                        }
+                        .sticker-header { font-size: 8px; font-weight: bold; color: #333; max-width: 44mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                        .sticker-title { font-size: 9.5px; font-weight: bold; color: #000; max-width: 44mm; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 1px 0; }
+                        .sticker-card svg { max-width: 42mm; height: 13mm !important; }
+                        .sticker-price { font-size: 11px; font-weight: 800; color: #000; margin-top: 1px; }
+                        @media print {
+                            .sticker-card { border: none !important; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="stickers-container">
+                        ${labelsHtml}
+                    </div>
+                    <script>
+                        function escapeHtml(str) {
+                            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                        }
+                        window.onload = function() {
+                            const barcodeVal = "${escapeJs(barcodeValue)}";
+                            for (let i = 0; i < ${qty}; i++) {
+                                try {
+                                    JsBarcode("#barcode-svg-" + i, barcodeVal, {
+                                        format: "CODE128",
+                                        width: 1.6,
+                                        height: 32,
+                                        displayValue: true,
+                                        fontSize: 10,
+                                        margin: 2
+                                    });
+                                } catch (e) { console.error(e); }
+                            }
+                            setTimeout(function() {
+                                window.focus();
+                                window.print();
+                                setTimeout(function() {
+                                    if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+                                }, 1000);
+                            }, 300);
+                        };
+                    <\/script>
+                </body>
+                </html>
+            `);
+            doc.close();
+        };
+
+        function escapeJs(str) {
+            return String(str || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'");
+        }
+        function escapeHtml(str) {
+            return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
     </script>
 </body>

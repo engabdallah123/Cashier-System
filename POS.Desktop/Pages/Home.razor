@@ -1,0 +1,403 @@
+@page "/"
+@page "/home"
+@using Microsoft.AspNetCore.Authorization
+@using System.Globalization
+@using global::POS.Desktop.Services.Auth
+@using global::POS.Desktop.Services.State
+@attribute [Authorize]
+@implements IDisposable
+@inject CustomAuthStateProvider AuthState
+@inject ShiftStateContainer ShiftState
+@inject StoreStateContainer StoreState
+@inject NavigationManager Nav
+
+<div class="home-container">
+    <!-- Top Hero Welcome Banner & Digital Clock -->
+    <div class="home-hero-card">
+        <div class="home-user-greeting">
+            <h1>
+                <i class="fa-solid @GreetingIcon me-1" style="color: var(--accent-amber);"></i>
+                <span>@GreetingTitle، @(AuthState.UserFullName ?? "مستخدم الكاشير")</span>
+            </h1>
+            <p>
+                <i class="fa-solid fa-store me-1" style="color: var(--accent-indigo);"></i>
+                <span>أهلاً بك في نظام إدارة الكاشير والمبيعات</span>
+                <span class="badge badge-blue ms-2" style="font-size: 0.75rem;">@(IsAdminOrManager ? "مدير النظام" : "كاشير")</span>
+            </p>
+        </div>
+
+        <!-- Professional Live Clock Box -->
+        <div class="home-clock-wrapper">
+            <div class="home-live-time">
+                <span>@ClockHoursMinutes</span>
+                <span class="seconds-badge">: @ClockSeconds</span>
+                <span style="font-size: 1rem; margin-right: 0.25rem;">@ClockAmPm</span>
+            </div>
+            <div class="home-live-date">
+                <i class="fa-solid fa-calendar-days me-1" style="color: var(--accent-blue);"></i>
+                <span>@FormattedArabicDate</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Live Shift Status Widget -->
+    <div class="shift-status-widget">
+        <div class="shift-status-info">
+            <div class="shift-status-icon @(ShiftState.IsShiftOpen ? "open" : "closed")">
+                <i class="fa-solid @(ShiftState.IsShiftOpen ? "fa-lock-open" : "fa-lock")"></i>
+            </div>
+            <div>
+                <h4 style="font-size: 1rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.15rem;">
+                    حالة الوردية: 
+                    <span style="color: @(ShiftState.IsShiftOpen ? "var(--accent-emerald)" : "var(--accent-red)"); font-weight: 800;">
+                        @(ShiftState.IsShiftOpen ? "الوردية مفتوحة وسارية" : "الوردية مغلقة حالياً")
+                    </span>
+                </h4>
+                <p style="font-size: 0.82rem; color: var(--text-secondary);">
+                    @(ShiftState.IsShiftOpen ? $"رقم الوردية الحالية: #{ShiftState.ShiftId.ToString()[..8]} | جاهزة لاستقبال المبيعات" : "يجب فتح وردية جديدة قبل البدء في عمليات البيع وإصدار الفواتير")
+                </p>
+            </div>
+        </div>
+        <div>
+            <NavLink href="shifts" class="@ShiftButtonClass" style="padding: 0.6rem 1.25rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span>@(ShiftState.IsShiftOpen ? "إدارة وتقفيل الوردية" : "فتح وردية جديدة الآن")</span>
+            </NavLink>
+        </div>
+    </div>
+
+    <!-- Quick Access Actions Grid -->
+    <div>
+        <div class="home-section-header">
+            <div class="home-section-title">
+                <i class="fa-solid fa-rocket"></i>
+                <span>الوصول السريع للشاشات الرئيسية</span>
+            </div>
+        </div>
+        <div class="quick-actions-grid">
+            <NavLink href="pos" class="quick-action-card">
+                <div class="quick-action-icon pos">
+                    <i class="fa-solid fa-cash-register"></i>
+                </div>
+                <div class="quick-action-info">
+                    <h4>شاشة البيع (POS)</h4>
+                    <p>إيقاع بيع سريع وإصدار الفواتير فوراً</p>
+                </div>
+            </NavLink>
+
+            <NavLink href="shifts" class="quick-action-card">
+                <div class="quick-action-icon shift">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                </div>
+                <div class="quick-action-info">
+                    <h4>الورديات والخزينة</h4>
+                    <p>فتح وإغلاق وتسليم وردية الكاشير</p>
+                </div>
+            </NavLink>
+
+            <NavLink href="price-check" class="quick-action-card">
+                <div class="quick-action-icon price">
+                    <i class="fa-solid fa-barcode"></i>
+                </div>
+                <div class="quick-action-info">
+                    <h4>استعلام الأسعار</h4>
+                    <p>فحص سعر وسحب تفاصيل المنتج بالباركود</p>
+                </div>
+            </NavLink>
+
+            <NavLink href="sales" class="quick-action-card">
+                <div class="quick-action-icon sales">
+                    <i class="fa-solid fa-receipt"></i>
+                </div>
+                <div class="quick-action-info">
+                    <h4>سجل المبيعات</h4>
+                    <p>استعراض وطباعة فواتير البيع المكتملة</p>
+                </div>
+            </NavLink>
+
+            <NavLink href="products" class="quick-action-card">
+                <div class="quick-action-icon products">
+                    <i class="fa-solid fa-boxes-stacked"></i>
+                </div>
+                <div class="quick-action-info">
+                    <h4>إدارة المنتجات</h4>
+                    <p>متابعة المخزون والأسعار والباركود</p>
+                </div>
+            </NavLink>
+
+            @if (IsAdminOrManager)
+            {
+                <NavLink href="dashboard" class="quick-action-card">
+                    <div class="quick-action-icon dashboard">
+                        <i class="fa-solid fa-chart-line"></i>
+                    </div>
+                    <div class="quick-action-info">
+                        <h4>لوحة الإحصائيات</h4>
+                        <p>تقارير الأرباح والمبيعات المتقدمة</p>
+                    </div>
+                </NavLink>
+            }
+        </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Guide Matrix -->
+    <div>
+        <div class="home-section-header">
+            <div class="home-section-title">
+                <i class="fa-solid fa-keyboard"></i>
+                <span>أهم اختصارات الكيبورد للعمل السريع (Keyboard Shortcuts)</span>
+            </div>
+            <span style="font-size: 0.82rem; color: var(--text-secondary);">استخدم الاختصارات لتسريع إنتاجية العمل على الكاشير</span>
+        </div>
+
+        <div class="shortcuts-wrapper">
+            <!-- POS Shortcuts Card -->
+            <div class="shortcuts-card">
+                <div class="shortcuts-card-header">
+                    <div class="shortcuts-card-title">
+                        <i class="fa-solid fa-cart-shopping" style="color: var(--accent-indigo);"></i>
+                        <span>اختصارات شاشة البيع (POS)</span>
+                    </div>
+                    <span class="badge badge-blue" style="font-size: 0.72rem;">أهم الاختصارات</span>
+                </div>
+
+                <div class="shortcuts-list">
+                    <div class="shortcut-item">
+                        <div class="shortcut-desc">
+                            <i class="fa-solid fa-barcode"></i>
+                            <span>التركيز المباشر على بحث الباركود</span>
+                        </div>
+                        <div class="shortcut-keys">
+                            <kbd>F2</kbd>
+                        </div>
+                    </div>
+
+                    <div class="shortcut-item">
+                        <div class="shortcut-desc">
+                            <i class="fa-solid fa-money-bill-wave"></i>
+                            <span>الانتقال المباشر لإتمام الدفع والنقد</span>
+                        </div>
+                        <div class="shortcut-keys">
+                            <kbd>F4</kbd>
+                        </div>
+                    </div>
+
+                    <div class="shortcut-item">
+                        <div class="shortcut-desc">
+                            <i class="fa-solid fa-file-circle-plus"></i>
+                            <span>بدء فاتورة جديدة / مسح السلة الحالية</span>
+                        </div>
+                        <div class="shortcut-keys">
+                            <kbd>F8</kbd>
+                        </div>
+                    </div>
+
+                    <div class="shortcut-item">
+                        <div class="shortcut-desc">
+                            <i class="fa-solid fa-ban"></i>
+                            <span>إلغاء وتصفير الفاتورة بالكامل</span>
+                        </div>
+                        <div class="shortcut-keys">
+                            <kbd>F9</kbd>
+                        </div>
+                    </div>
+
+                    <div class="shortcut-item">
+                        <div class="shortcut-desc">
+                            <i class="fa-solid fa-trash-can"></i>
+                            <span>حذف المنتج المحدد من سلة المبيعات</span>
+                        </div>
+                        <div class="shortcut-keys">
+                            <kbd>Delete</kbd>
+                        </div>
+                    </div>
+
+                    <div class="shortcut-item">
+                        <div class="shortcut-desc">
+                            <i class="fa-solid fa-arrow-up-1-9"></i>
+                            <span>زيادة / إنقاص كمية الصنف المحدد</span>
+                        </div>
+                        <div class="shortcut-keys">
+                            <kbd>+</kbd>
+                            <span class="shortcut-plus">أو</span>
+                            <kbd>-</kbd>
+                        </div>
+                    </div>
+
+                    <div class="shortcut-item">
+                        <div class="shortcut-desc">
+                            <i class="fa-solid fa-print"></i>
+                            <span>إعادة طباعة أخر فاتورة مبيعات</span>
+                        </div>
+                        <div class="shortcut-keys">
+                            <kbd>Ctrl</kbd>
+                            <span class="shortcut-plus">+</span>
+                            <kbd>P</kbd>
+                        </div>
+                    </div>
+
+                    <div class="shortcut-item">
+                        <div class="shortcut-desc">
+                            <i class="fa-solid fa-magnifying-glass-dollar"></i>
+                            <span>فتح شاشة الاستعلام السريع عن الأسعار</span>
+                        </div>
+                        <div class="shortcut-keys">
+                            <kbd>F1</kbd>
+                            <span class="shortcut-plus">أو</span>
+                            <kbd>F3</kbd>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- General System & Navigation Shortcuts Card -->
+            <div class="shortcuts-card">
+                <div class="shortcuts-card-header">
+                    <div class="shortcuts-card-title">
+                        <i class="fa-solid fa-compass" style="color: var(--accent-blue);"></i>
+                        <span>اختصارات التنقل العامة والنظام</span>
+                    </div>
+                    <span class="badge badge-purple" style="font-size: 0.72rem;">التنقل السريع</span>
+                </div>
+
+                <div class="shortcuts-list">
+                    <div class="shortcut-item">
+                        <div class="shortcut-desc">
+                            <i class="fa-solid fa-house"></i>
+                            <span>الانتقال المباشر للصفحة الرئيسية</span>
+                        </div>
+                        <div class="shortcut-keys">
+                            <kbd>Ctrl</kbd>
+                            <span class="shortcut-plus">+</span>
+                            <kbd>Shift</kbd>
+                            <span class="shortcut-plus">+</span>
+                            <kbd>H</kbd>
+                        </div>
+                    </div>
+
+                    <div class="shortcut-item">
+                        <div class="shortcut-desc">
+                            <i class="fa-solid fa-clock-rotate-left"></i>
+                            <span>فتح شاشة إدارة الورديات الخزينة</span>
+                        </div>
+                        <div class="shortcut-keys">
+                            <kbd>Ctrl</kbd>
+                            <span class="shortcut-plus">+</span>
+                            <kbd>Shift</kbd>
+                            <span class="shortcut-plus">+</span>
+                            <kbd>S</kbd>
+                        </div>
+                    </div>
+
+                    <div class="shortcut-item">
+                        <div class="shortcut-desc">
+                            <i class="fa-solid fa-boxes-stacked"></i>
+                            <span>فتح شاشة إدارة الكتالوج والمنتجات</span>
+                        </div>
+                        <div class="shortcut-keys">
+                            <kbd>Ctrl</kbd>
+                            <span class="shortcut-plus">+</span>
+                            <kbd>Shift</kbd>
+                            <span class="shortcut-plus">+</span>
+                            <kbd>P</kbd>
+                        </div>
+                    </div>
+
+                    <div class="shortcut-item">
+                        <div class="shortcut-desc">
+                            <i class="fa-solid fa-chart-line"></i>
+                            <span>فتح لوحة تحليلات وتقارير النظام</span>
+                        </div>
+                        <div class="shortcut-keys">
+                            <kbd>Ctrl</kbd>
+                            <span class="shortcut-plus">+</span>
+                            <kbd>Shift</kbd>
+                            <span class="shortcut-plus">+</span>
+                            <kbd>D</kbd>
+                        </div>
+                    </div>
+
+                    <div class="shortcut-item">
+                        <div class="shortcut-desc">
+                            <i class="fa-solid fa-xmark"></i>
+                            <span>إغلاق أية نافذة منبثقة أو إلغاء الإجراء</span>
+                        </div>
+                        <div class="shortcut-keys">
+                            <kbd>Esc</kbd>
+                        </div>
+                    </div>
+
+                    <div class="shortcut-item">
+                        <div class="shortcut-desc">
+                            <i class="fa-solid fa-right-from-bracket"></i>
+                            <span>تسجيل الخروج الآمن من النظام</span>
+                        </div>
+                        <div class="shortcut-keys">
+                            <kbd>Ctrl</kbd>
+                            <span class="shortcut-plus">+</span>
+                            <kbd>Shift</kbd>
+                            <span class="shortcut-plus">+</span>
+                            <kbd>L</kbd>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private System.Threading.Timer? _clockTimer;
+    private DateTime _now = DateTime.Now;
+
+    private static readonly CultureInfo ArabicCulture = new("ar-EG");
+
+    private string ClockHoursMinutes => _now.ToString("hh:mm", ArabicCulture);
+    private string ClockSeconds => _now.ToString("ss", CultureInfo.InvariantCulture);
+    private string ClockAmPm => _now.ToString("tt", ArabicCulture);
+    private string FormattedArabicDate => _now.ToString("dddd، d MMMM yyyy", ArabicCulture);
+
+    private string GreetingTitle => _now.Hour switch
+    {
+        >= 5 and < 12 => "صباح الخير",
+        >= 12 and < 17 => "مساء الخير",
+        >= 17 and < 23 => "مساء الخير",
+        _ => "أهلاً بك"
+    };
+
+    private string GreetingIcon => _now.Hour switch
+    {
+        >= 5 and < 17 => "fa-sun",
+        _ => "fa-moon"
+    };
+
+    private bool IsAdminOrManager =>
+        string.Equals(AuthState.UserRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(AuthState.UserRole, "Manager", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(AuthState.UserRole, "Administrator", StringComparison.OrdinalIgnoreCase);
+
+    private string ShiftButtonClass => ShiftState.IsShiftOpen ? "btn btn-secondary" : "btn btn-primary";
+
+    protected override void OnInitialized()
+    {
+        ShiftState.OnShiftStateChanged += OnShiftChanged;
+
+        // Initialize 1-second live clock ticker
+        _clockTimer = new System.Threading.Timer(_ =>
+        {
+            _now = DateTime.Now;
+            _ = InvokeAsync(StateHasChanged);
+        }, null, 0, 1000);
+    }
+
+    private async void OnShiftChanged()
+    {
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public void Dispose()
+    {
+        _clockTimer?.Dispose();
+        ShiftState.OnShiftStateChanged -= OnShiftChanged;
+    }
+}

@@ -4,9 +4,11 @@
 @using Microsoft.AspNetCore.Components.Forms
 @using global::POS.Desktop.Services.Api
 @using global::POS.Desktop.Services.Auth
+@using global::POS.Desktop.Services.State
 @attribute [Authorize]
 @inject PosApiClient ApiClient
 @inject CustomAuthStateProvider AuthState
+@inject StoreStateContainer StoreState
 @inject IJSRuntime JS
 
 <div>
@@ -95,6 +97,9 @@
                             {
                                 <td style="text-align: center;">
                                     <div style="display: flex; gap: 0.35rem; justify-content: center;">
+                                        <button class="btn btn-secondary" style="padding: 0.3rem 0.5rem; font-size: 0.8rem; background: rgba(56, 189, 248, 0.15); border-color: var(--accent-blue); color: var(--accent-blue);" @onclick="() => OpenBarcodeModal(prod)" title="طباعة ملصق الباركود للمنتج">
+                                            <i class="fa-solid fa-barcode"></i>
+                                        </button>
                                         <button class="btn btn-secondary" style="padding: 0.3rem 0.5rem; font-size: 0.8rem;" @onclick="() => OpenEditModal(prod)" title="تعديل المنتج">
                                             <i class="fa-solid fa-pen-to-square"></i>
                                         </button>
@@ -155,6 +160,9 @@
                             </button>
                             <button class="btn btn-secondary" type="button" @onclick="GenerateBarcode" title="توليد باركود تلقائي راندوم">
                                 <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            </button>
+                            <button class="btn btn-secondary" type="button" @onclick="PrintBarcodeFromAddModal" title="طباعة ملصق الباركود لهذا الكود">
+                                <i class="fa-solid fa-print me-1" style="color: var(--accent-amber);"></i> <span>طباعة</span>
                             </button>
                         </div>
                     </div>
@@ -472,6 +480,67 @@
     </div>
 }
 
+<!-- Barcode Printing Modal -->
+@if (showBarcodeModal && selectedProductForBarcode is not null)
+{
+    <div class="modal-overlay" @onclick="CloseModals">
+        <div class="modal-card" style="width: 520px;" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fa-solid fa-barcode me-2" style="color: var(--accent-indigo);"></i>
+                    طباعة ملصق الباركود للمنتج
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="CloseModals">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.25rem; text-align: center;">
+                    <h4 style="font-size: 1.1rem; font-weight: 700; color: var(--text-primary); margin-bottom: 0.25rem;">
+                        @selectedProductForBarcode.NameAr
+                    </h4>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+                        الباركود: <code style="font-weight: 700; color: var(--accent-blue);">@selectedProductForBarcode.Barcode</code>
+                        | السعر: <strong style="color: var(--accent-emerald);">@selectedProductForBarcode.SellingPrice.ToString("N2") ج.م</strong>
+                    </p>
+
+                    <!-- Live Barcode SVG Preview Box -->
+                    <div style="background: #ffffff; border-radius: 0.5rem; padding: 0.75rem; display: inline-block; margin: 0 auto; box-shadow: var(--shadow-sm);">
+                        <svg id="preview-barcode-svg"></svg>
+                    </div>
+                </div>
+
+                <div class="grid-2">
+                    <div class="form-group">
+                        <label>عدد الملصقات المطلوب طباعتها</label>
+                        <input type="number" min="1" max="500" class="form-control" @bind="barcodePrintQty" />
+                    </div>
+
+                    <div class="form-group">
+                        <label>اسم المحل على الملصق</label>
+                        <input class="form-control" @bind="barcodeStoreName" placeholder="اسم المحل..." />
+                    </div>
+                </div>
+
+                <div class="form-group" style="margin-top: 0.75rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                        <input type="checkbox" @bind="barcodeShowPrice" style="width: 18px; height: 18px;" />
+                        <span>إظهار سعر البيع على ملصق الباركود</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="display: flex; justify-content: space-between;">
+                <button class="btn btn-secondary" @onclick="CloseModals">إلغاء</button>
+                <button class="btn btn-primary" style="padding: 0.65rem 1.5rem; font-weight: 700;" @onclick="ExecutePrintBarcode">
+                    <i class="fa-solid fa-print me-1"></i> طباعة الملصقات (@barcodePrintQty)
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<ProductDto> products = new();
     private List<ProductDto> filtered = new();
@@ -489,6 +558,11 @@
     private bool showAddModal = false;
     private bool showEditModal = false;
     private bool showDeleteModal = false;
+    private bool showBarcodeModal = false;
+    private ProductDto? selectedProductForBarcode;
+    private int barcodePrintQty = 1;
+    private string barcodeStoreName = "سوبرماركت";
+    private bool barcodeShowPrice = true;
     private bool isSaving = false;
     private string errorMessage = string.Empty;
 
@@ -667,7 +741,77 @@
         showEditModal = false;
         showDeleteModal = false;
         showImportModal = false;
+        showBarcodeModal = false;
         productToDelete = null;
+        selectedProductForBarcode = null;
+    }
+
+    private async Task OpenBarcodeModal(ProductDto prod)
+    {
+        selectedProductForBarcode = prod;
+        barcodePrintQty = 1;
+        barcodeShowPrice = true;
+        if (!string.IsNullOrWhiteSpace(StoreState.StoreName))
+        {
+            barcodeStoreName = StoreState.StoreName;
+        }
+        showBarcodeModal = true;
+
+        StateHasChanged();
+        await Task.Delay(150);
+        await JS.InvokeVoidAsync("renderBarcodeSvg", "preview-barcode-svg", prod.Barcode);
+    }
+
+    private async Task PrintBarcodeFromAddModal()
+    {
+        if (string.IsNullOrWhiteSpace(newProduct.Barcode))
+        {
+            errorMessage = "يرجى إدخال أو توليد الباركود أولاً قبل الطباعة.";
+            return;
+        }
+
+        var tempProd = new ProductDto(
+            Id: Guid.Empty,
+            Barcode: newProduct.Barcode,
+            NameAr: string.IsNullOrWhiteSpace(newProduct.NameAr) ? "منتج جديد" : newProduct.NameAr,
+            NameEn: newProduct.NameEn ?? string.Empty,
+            Description: newProduct.Description,
+            CategoryId: Guid.Empty,
+            CategoryName: "عام",
+            UnitId: Guid.Empty,
+            UnitSymbol: "قطعة",
+            SupplierId: null,
+            SupplierName: null,
+            PurchasePrice: newProduct.PurchasePrice,
+            SellingPrice: newProduct.SellingPrice,
+            WholesalePrice: newProduct.WholesalePrice,
+            QuantityInStock: 0,
+            ReorderLevel: 0,
+            MaxStockLevel: 0,
+            IsWeighable: false,
+            IsActive: true,
+            TrackExpiry: false,
+            TaxRate: 14,
+            ImageUrl: null
+        );
+
+        await OpenBarcodeModal(tempProd);
+    }
+
+    private async Task ExecutePrintBarcode()
+    {
+        if (selectedProductForBarcode is null) return;
+
+        var priceText = barcodeShowPrice ? $"{selectedProductForBarcode.SellingPrice:N2} ج.م" : string.Empty;
+        await JS.InvokeVoidAsync("printBarcodeLabels",
+            selectedProductForBarcode.NameAr,
+            selectedProductForBarcode.Barcode,
+            priceText,
+            barcodePrintQty,
+            barcodeStoreName,
+            barcodeShowPrice);
+
+        CloseModals();
     }
 
     private void GenerateBarcode()
