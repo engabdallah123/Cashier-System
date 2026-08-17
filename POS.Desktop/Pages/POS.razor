@@ -5,24 +5,27 @@
 @using global::POS.Desktop.Services.State
 @using global::POS.Desktop.Services.Printing
 @attribute [Authorize]
+@implements IDisposable
 @inject PosApiClient ApiClient
 @inject CartStateContainer Cart
 @inject ShiftStateContainer Shift
 @inject CustomAuthStateProvider AuthState
 @inject IInvoicePrinterService Printer
+@inject IJSRuntime JS
 
-<div class="pos-layout" @onkeydown="HandleGlobalKeyDown" tabindex="0">
+<div class="pos-layout">
     <!-- Left Panel: Catalog & Search -->
     <div class="catalog-panel">
         <div style="display: flex; gap: 0.75rem;">
             <!-- Barcode Scanner HID Input -->
             <div class="search-box" style="flex: 1;">
                 <i class="fa-solid fa-barcode"></i>
-                <input @ref="barcodeInputRef" 
+                <input id="pos-barcode-input"
+                       @ref="barcodeInputRef" 
                        @bind="scannedBarcode" 
                        @bind:event="oninput" 
                        @onkeyup="HandleBarcodeKeyUp"
-                       placeholder="امسح الباركود أو أدخله يدوياً... [Enter]" 
+                       placeholder="امسح الباركود أو أدخله يدوياً... [F2 / Enter]" 
                        style="border-color: var(--accent-blue);" />
             </div>
 
@@ -229,40 +232,44 @@
                 }
 
                 <!-- Customer & Products Review Section -->
-                <div style="background: rgba(15, 23, 42, 0.6); border: 1px solid var(--border-color-light); border-radius: 0.75rem; padding: 0.9rem 1rem; margin-bottom: 1.25rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 0.5rem;">
+                <div style="background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 0.85rem 1rem; margin-bottom: 1.15rem; box-shadow: var(--shadow-sm);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none; @(isProductReviewExpanded ? "margin-bottom: 0.75rem; border-bottom: 1px solid var(--border-color-light); padding-bottom: 0.5rem;" : "")" @onclick="ToggleProductReview" title="انقر لإظهار أو إخفاء منتجات الفاتورة">
                         <div style="font-weight: 700; font-size: 0.9rem; color: var(--accent-indigo); display: flex; align-items: center; gap: 0.5rem;">
                             <i class="fa-solid fa-list-check"></i>
-                            <span>مراجعة منتجات الفاتورة (@Cart.Items.Count منتج)</span>
+                            <span>مراجعة منتجات الفاتورة (@Cart.Items.Count صنف)</span>
+                            <i class="fa-solid @(isProductReviewExpanded ? "fa-chevron-up" : "fa-chevron-down")" style="font-size: 0.75rem; color: var(--text-muted);"></i>
                         </div>
-                        <span style="font-size: 0.78rem; color: var(--text-secondary); background: rgba(99, 102, 241, 0.12); padding: 0.25rem 0.65rem; border-radius: 1rem; border: 1px solid rgba(99, 102, 241, 0.2);">
+                        <span style="font-size: 0.78rem; color: var(--text-secondary); background: rgba(99, 102, 241, 0.12); padding: 0.25rem 0.65rem; border-radius: 1rem; border: 1px solid rgba(99, 102, 241, 0.25);">
                             <i class="fa-solid fa-user me-1"></i> @(Cart.CustomerName == "Walk-in Customer" ? "عميل نقدي" : Cart.CustomerName)
                         </span>
                     </div>
 
-                    <div style="max-height: 170px; overflow-y: auto; padding-left: 0.3rem;">
-                        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
-                            <thead>
-                                <tr style="color: var(--text-secondary); text-align: right; border-bottom: 1px dashed rgba(255, 255, 255, 0.15);">
-                                    <th style="padding: 0.4rem 0.25rem; font-weight: 600;">المنتج</th>
-                                    <th style="padding: 0.4rem 0.25rem; text-align: center; font-weight: 600;">الكمية</th>
-                                    <th style="padding: 0.4rem 0.25rem; text-align: center; font-weight: 600;">سعر الوحدة</th>
-                                    <th style="padding: 0.4rem 0.25rem; text-align: left; font-weight: 600;">الإجمالي</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var item in Cart.Items)
-                                {
-                                    <tr style="border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-                                        <td style="padding: 0.5rem 0.25rem; font-weight: 600; color: var(--text-primary);">@item.ProductName</td>
-                                        <td style="padding: 0.5rem 0.25rem; text-align: center; color: var(--accent-amber); font-weight: 700;">@item.Quantity.ToString("N0")</td>
-                                        <td style="padding: 0.5rem 0.25rem; text-align: center; color: var(--text-secondary);">@item.UnitPrice.ToString("N2") ج.م</td>
-                                        <td style="padding: 0.5rem 0.25rem; text-align: left; font-weight: 700; color: var(--accent-emerald);">@item.LineTotal.ToString("N2") ج.م</td>
+                    @if (isProductReviewExpanded)
+                    {
+                        <div style="max-height: 180px; overflow-y: auto; padding-left: 0.3rem;">
+                            <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                                <thead>
+                                    <tr style="color: var(--text-secondary); text-align: right; border-bottom: 1px dashed var(--border-color-light);">
+                                        <th style="padding: 0.4rem 0.25rem; font-weight: 600;">المنتج</th>
+                                        <th style="padding: 0.4rem 0.25rem; text-align: center; font-weight: 600;">الكمية</th>
+                                        <th style="padding: 0.4rem 0.25rem; text-align: center; font-weight: 600;">سعر الوحدة</th>
+                                        <th style="padding: 0.4rem 0.25rem; text-align: left; font-weight: 600;">الإجمالي</th>
                                     </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in Cart.Items)
+                                    {
+                                        <tr style="border-bottom: 1px solid var(--border-color-light);">
+                                            <td style="padding: 0.5rem 0.25rem; font-weight: 600; color: var(--text-primary);">@item.ProductName</td>
+                                            <td style="padding: 0.5rem 0.25rem; text-align: center; color: var(--accent-amber); font-weight: 700;">@item.Quantity.ToString("N0")</td>
+                                            <td style="padding: 0.5rem 0.25rem; text-align: center; color: var(--text-secondary);">@item.UnitPrice.ToString("N2") ج.م</td>
+                                            <td style="padding: 0.5rem 0.25rem; text-align: left; font-weight: 700; color: var(--accent-emerald);">@item.LineTotal.ToString("N2") ج.م</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
                 </div>
 
                 <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-card); padding: 1rem 1.25rem; border-radius: 0.75rem; border: 1px solid var(--border-color-light); margin-bottom: 1.25rem;">
@@ -721,16 +728,83 @@
         }
     }
 
-    private void HandleGlobalKeyDown(KeyboardEventArgs e)
+    private DotNetObjectReference<POS>? _dotNetRef;
+    private bool isProductReviewExpanded = true;
+
+    private void ToggleProductReview()
     {
-        if (e.Key == "F8" && Cart.Items.Any()) OpenPaymentModal();
-        if (e.Key == "F2") _ = OpenCustomerModal();
-        if (e.Key == "Escape") Cart.Clear();
+        isProductReviewExpanded = !isProductReviewExpanded;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                _dotNetRef = DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("initPosPageShortcuts", _dotNetRef);
+                await JS.InvokeVoidAsync("focusElementById", "pos-barcode-input");
+            }
+            catch
+            {
+                // Fallback if JS call fails
+            }
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnPosShortcutPressed(string key)
+    {
+        if (key == "F2")
+        {
+            await JS.InvokeVoidAsync("focusElementById", "pos-barcode-input");
+        }
+        else if (key == "F4" || key == "F8")
+        {
+            if (Cart.Items.Any() && !showPaymentModal && !showCustomerModal)
+            {
+                OpenPaymentModal();
+            }
+        }
+        else if (key == "F9")
+        {
+            if (Cart.Items.Any())
+            {
+                Cart.Clear();
+            }
+        }
+        else if (key == "Escape")
+        {
+            if (showPaymentModal)
+            {
+                ClosePaymentModal();
+            }
+            else if (showCustomerModal)
+            {
+                CloseCustomerModal();
+            }
+            else if (Cart.Items.Any())
+            {
+                Cart.Clear();
+            }
+            else
+            {
+                await JS.InvokeVoidAsync("focusElementById", "pos-barcode-input");
+            }
+        }
+        StateHasChanged();
     }
 
     private string GetImageFullUrl(string? relativeOrUrl)
     {
         if (string.IsNullOrWhiteSpace(relativeOrUrl)) return string.Empty;
         return ApiClient.GetImageFullUrl(relativeOrUrl);
+    }
+
+    public void Dispose()
+    {
+        _dotNetRef?.Dispose();
+        Cart.OnCartChanged -= StateHasChanged;
     }
 }

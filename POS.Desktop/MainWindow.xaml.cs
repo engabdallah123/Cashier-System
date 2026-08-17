@@ -14,6 +14,15 @@ namespace POS.Desktop
                 Selector = "#app",
                 ComponentType = typeof(AppRoutes)
             });
+
+            blazorWebView.BlazorWebViewInitialized += (sender, e) =>
+            {
+                if (blazorWebView.WebView?.CoreWebView2?.Settings != null)
+                {
+                    // Disable built-in Chromium browser shortcut keys (Ctrl+P print, Ctrl+S save, Ctrl+F find, etc.)
+                    blazorWebView.WebView.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
+                }
+            };
         }
     }
 }

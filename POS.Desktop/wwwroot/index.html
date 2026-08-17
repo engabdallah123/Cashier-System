@@ -202,8 +202,22 @@
             return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
         }
 
+        window.focusElementById = function (id) {
+            const el = document.getElementById(id);
+            if (el) {
+                el.focus();
+                if (el.select) el.select();
+            }
+        };
+
         window.initGlobalNavigationShortcuts = function (dotNetHelper) {
-            document.addEventListener('keydown', function (e) {
+            window.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') {
+                    if (dotNetHelper) {
+                        dotNetHelper.invokeMethodAsync('OnGlobalEscPressed');
+                    }
+                }
+
                 if (!e.ctrlKey && !e.metaKey) return;
 
                 const key = (e.key || '').toLowerCase();
@@ -222,12 +236,29 @@
                 if (ctrlKeyMap[key] !== undefined) {
                     e.preventDefault();
                     e.stopPropagation();
+                    e.stopImmediatePropagation();
 
                     if (dotNetHelper) {
-                        dotNetHelper.invokeMethodAsync('NavigateFromShortcut', ctrlKeyMap[key]);
+                        dotNetHelper.invokeMethodAsync('OpenQuickWindow', ctrlKeyMap[key]);
                     }
                 }
-            }, true);
+            }, { capture: true });
+        };
+
+        window.initPosPageShortcuts = function (dotNetHelper) {
+            document.addEventListener('keydown', function (e) {
+                if (e.ctrlKey || e.metaKey) return;
+
+                const isPosPage = window.location.pathname.endsWith('/pos') || window.location.pathname.endsWith('pos') || window.location.pathname === '/';
+                if (!isPosPage) return;
+
+                if (e.key === 'F2' || e.key === 'F4' || e.key === 'F8' || e.key === 'F9' || e.key === 'Escape') {
+                    e.preventDefault();
+                    if (dotNetHelper) {
+                        dotNetHelper.invokeMethodAsync('OnPosShortcutPressed', e.key);
+                    }
+                }
+            });
         };
     </script>
 </body>

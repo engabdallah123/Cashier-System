@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @using Microsoft.AspNetCore.Components.Authorization
+@using global::POS.Desktop.Pages
 @inject CustomAuthStateProvider AuthState
 @inject ShiftStateContainer ShiftState
 @inject NavigationManager Nav
@@ -21,6 +22,7 @@
         box-shadow: 0 4px 12px rgba(99, 102, 241, 0.35);
         transition: all 0.2s ease;
         border: 1px solid rgba(255, 255, 255, 0.15);
+        cursor: pointer;
     }
     .topbar-btn-price:hover {
         transform: translateY(-1.5px);
@@ -41,11 +43,11 @@
                     @(ShiftState.IsShiftOpen ? $"الوردية مفتوحة (#{ShiftState.ShiftId.ToString()[..6]})" : "الوردية مغلقة")
                 </span>
 
-                <!-- Price Check Top Bar Button -->
-                <NavLink href="price-check" class="topbar-btn-price" title="استعلام فوري عن سعر منتج بالباركود">
+                <!-- Price Check Top Bar Button (Opens Window Popup on Top of Page) -->
+                <button type="button" class="topbar-btn-price" @onclick='() => OpenQuickWindow("price-check")' title="استعلام فوري عن سعر منتج بالباركود بدون مغادرة الشاشة الحالية">
                     <i class="fa-solid fa-barcode"></i>
                     <span>الاستعلام عن السعر</span>
-                </NavLink>
+                </button>
             </div>
 
             <div style="display: flex; align-items: center; gap: 1rem;">
@@ -77,8 +79,59 @@
     </div>
 </div>
 
+<!-- Global Window Overlay (Opens target screen as a modal window on top of active page) -->
+@if (!string.IsNullOrEmpty(activeModalRoute))
+{
+    <div class="global-window-overlay" @onclick="CloseGlobalModal">
+        <div class="global-window-card" @onclick:stopPropagation="true">
+            <div class="global-window-header">
+                <div class="global-window-title">
+                    <i class="fa-solid @GetModalIcon(activeModalRoute)" style="color: var(--accent-indigo);"></i>
+                    <span>@GetModalTitle(activeModalRoute)</span>
+                    <span class="badge badge-indigo ms-2" style="font-size: 0.75rem;">نافذة منبثقة فوق الشاشة [Esc لإغلاق]</span>
+                </div>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button class="btn btn-primary" style="padding: 0.35rem 0.75rem; font-size: 0.82rem;" @onclick="NavigateToModalPageFull" title="الانتقال الكامل لهذه الشاشة">
+                        <i class="fa-solid fa-up-right-from-square me-1"></i> فتح الشاشة بالكامل
+                    </button>
+                    <button class="btn btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.82rem;" @onclick="CloseGlobalModal" title="إغلاق النافذة (Esc)">
+                        <i class="fa-solid fa-xmark me-1"></i> إغلاق (Esc)
+                    </button>
+                </div>
+            </div>
+            <div class="global-window-body">
+                @switch (activeModalRoute)
+                {
+                    case "price-check":
+                        <PriceCheck />
+                        break;
+                    case "products":
+                        <Products />
+                        break;
+                    case "shifts":
+                        <Shifts />
+                        break;
+                    case "sales":
+                        <SalesList />
+                        break;
+                    case "purchases":
+                        <Purchases />
+                        break;
+                    case "expenses":
+                        <Expenses />
+                        break;
+                    case "dashboard":
+                        <Dashboard />
+                        break;
+                }
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private bool isDarkMode = true;
+    private string? activeModalRoute;
 
     private bool IsAdminOrManager =>
         string.Equals(AuthState.UserRole, "Admin", StringComparison.OrdinalIgnoreCase) ||
@@ -110,10 +163,69 @@
     }
 
     [JSInvokable]
-    public void NavigateFromShortcut(string route)
+    public void OpenQuickWindow(string route)
     {
-        Nav.NavigateTo(route);
+        if (route == "pos" || route == "home" || string.IsNullOrEmpty(route))
+        {
+            activeModalRoute = null;
+            Nav.NavigateTo(route);
+        }
+        else
+        {
+            activeModalRoute = route;
+            StateHasChanged();
+        }
     }
+
+    [JSInvokable]
+    public void OnGlobalEscPressed()
+    {
+        if (!string.IsNullOrEmpty(activeModalRoute))
+        {
+            activeModalRoute = null;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseGlobalModal()
+    {
+        activeModalRoute = null;
+        StateHasChanged();
+    }
+
+    private void NavigateToModalPageFull()
+    {
+        var targetRoute = activeModalRoute;
+        activeModalRoute = null;
+        if (!string.IsNullOrEmpty(targetRoute))
+        {
+            Nav.NavigateTo(targetRoute);
+        }
+    }
+
+    private string GetModalIcon(string route) => route switch
+    {
+        "price-check" => "fa-barcode",
+        "products" => "fa-boxes-stacked",
+        "shifts" => "fa-clock-rotate-left",
+        "sales" => "fa-receipt",
+        "purchases" => "fa-truck-field",
+        "expenses" => "fa-wallet",
+        "dashboard" => "fa-chart-pie",
+        _ => "fa-window-restore"
+    };
+
+    private string GetModalTitle(string route) => route switch
+    {
+        "price-check" => "استعلام الأسعار بالباركود",
+        "products" => "كتالوج المنتجات والمخزون",
+        "shifts" => "إدارة الورديات والخزينة",
+        "sales" => "سجل المبيعات والفواتير",
+        "purchases" => "شاشة المشتريات والواردات",
+        "expenses" => "إدارة المصروفات",
+        "dashboard" => "لوحة البيانات والتقارير",
+        _ => "نافذة منبثقة"
+    };
 
     protected override void OnInitialized()
     {
@@ -146,4 +258,3 @@
         AuthState.AuthenticationStateChanged -= OnAuthStateChanged;
     }
 }
-
