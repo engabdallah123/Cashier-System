@@ -1,6 +1,7 @@
 using Inventory.Domain;
 using Inventory.Domain.Catalog.Products.Entities;
 using Inventory.Domain.Catalog.Products.Errors;
+using POS.Shared.Application.IService;
 using POS.Shared.Application.Messaging;
 using POS.Shared.Domain;
 
@@ -9,10 +10,14 @@ namespace Inventory.Application.Catalog.Products.Commands.CreateProduct
     internal sealed class CreateProductCommandHandler : ICommandHandler<CreateProductCommand, Guid>
     {
         private readonly IInventoryUnitOfWork _unitOfWork;
+        private readonly ICacheService _cacheService;
 
-        public CreateProductCommandHandler(IInventoryUnitOfWork unitOfWork)
+        public CreateProductCommandHandler(
+            IInventoryUnitOfWork unitOfWork,
+            ICacheService cacheService)
         {
             _unitOfWork = unitOfWork;
+            _cacheService = cacheService;
         }
 
         public async Task<Result<Guid>> Handle(CreateProductCommand request, CancellationToken cancellationToken)
@@ -44,6 +49,9 @@ namespace Inventory.Application.Catalog.Products.Commands.CreateProduct
 
             await _unitOfWork.ProductRepository.AddAsync(product, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _cacheService.RemoveByPrefixAsync("products_", cancellationToken);
+            await _cacheService.RemoveByPrefixAsync("dashboard_", cancellationToken);
 
             return Result<Guid>.Success(product.Id);
         }

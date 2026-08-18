@@ -1,5 +1,6 @@
 using Dapper;
 using POS.Shared.Application.Database;
+using POS.Shared.Application.IService;
 using POS.Shared.Application.Messaging;
 using POS.Shared.Domain;
 
@@ -8,14 +9,26 @@ namespace Inventory.Application.Catalog.Products.Queries.GetProducts
     internal sealed class GetProductsQueryHandler : IQueryHandler<GetProductsQuery, IReadOnlyList<ProductResponse>>
     {
         private readonly ISqlConnectionFactory _sqlConnectionFactory;
+        private readonly ICacheService _cacheService;
 
-        public GetProductsQueryHandler(ISqlConnectionFactory sqlConnectionFactory)
+        public GetProductsQueryHandler(
+            ISqlConnectionFactory sqlConnectionFactory,
+            ICacheService cacheService)
         {
             _sqlConnectionFactory = sqlConnectionFactory;
+            _cacheService = cacheService;
         }
 
         public async Task<Result<IReadOnlyList<ProductResponse>>> Handle(GetProductsQuery request, CancellationToken cancellationToken)
         {
+            var cacheKey = $"products_list_cat_{request.CategoryId}_term_{request.SearchTerm}_active_{request.IsActive}_page_{request.Page}_size_{request.PageSize}";
+
+            var cachedProducts = await _cacheService.GetAsync<IReadOnlyList<ProductResponse>>(cacheKey, cancellationToken);
+            if (cachedProducts is not null)
+            {
+                return Result<IReadOnlyList<ProductResponse>>.Success(cachedProducts);
+            }
+
             using var connection = _sqlConnectionFactory.CreateConnection();
 
             var sql = """
@@ -57,7 +70,16 @@ namespace Inventory.Application.Catalog.Products.Queries.GetProducts
                 request.PageSize
             });
 
-            return Result<IReadOnlyList<ProductResponse>>.Success(products.ToList());
+            var resultList = (IReadOnlyList<ProductResponse>)products.ToList();
+
+            await _cacheService.SetAsync(
+                cacheKey,
+                resultList,
+                absoluteExpiration: TimeSpan.FromMinutes(5),
+                slidingExpiration: TimeSpan.FromMinutes(2),
+                ct: cancellationToken);
+
+            return Result<IReadOnlyList<ProductResponse>>.Success(resultList);
         }
     }
 }

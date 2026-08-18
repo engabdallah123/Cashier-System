@@ -16,13 +16,16 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
     {
         private readonly IInventoryUnitOfWork _unitOfWork;
         private readonly IFileService _fileService;
+        private readonly ICacheService _cacheService;
 
         public ImportProductsFromExcelCommandHandler(
             IInventoryUnitOfWork unitOfWork,
-            IFileService fileService)
+            IFileService fileService,
+            ICacheService cacheService)
         {
             _unitOfWork = unitOfWork;
             _fileService = fileService;
+            _cacheService = cacheService;
         }
 
         public async Task<Result<ProductImportResultDto>> Handle(
@@ -450,6 +453,11 @@ namespace Inventory.Application.Catalog.Products.Commands.ImportProductsFromExce
 
             // Save all changes in a single high-performance Bulk commit
             await _unitOfWork.SaveChangesAsync(cancellationToken);
+
+            await _cacheService.RemoveByPrefixAsync("products_", cancellationToken);
+            await _cacheService.RemoveByPrefixAsync("product_", cancellationToken);
+            await _cacheService.RemoveByPrefixAsync("dashboard_", cancellationToken);
+
             return Result<ProductImportResultDto>.Success(result);
         }
 

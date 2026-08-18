@@ -1,5 +1,6 @@
 using Dapper;
 using POS.Shared.Application.Database;
+using POS.Shared.Application.IService;
 using POS.Shared.Application.Messaging;
 using POS.Shared.Domain;
 using System.Data;
@@ -9,14 +10,26 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
     internal sealed class GetDashboardQueryHandler : IQueryHandler<GetDashboardQuery, DashboardResponse>
     {
         private readonly ISqlConnectionFactory _sqlConnectionFactory;
+        private readonly ICacheService _cacheService;
 
-        public GetDashboardQueryHandler(ISqlConnectionFactory sqlConnectionFactory)
+        public GetDashboardQueryHandler(
+            ISqlConnectionFactory sqlConnectionFactory,
+            ICacheService cacheService)
         {
             _sqlConnectionFactory = sqlConnectionFactory;
+            _cacheService = cacheService;
         }
 
         public async Task<Result<DashboardResponse>> Handle(GetDashboardQuery request, CancellationToken cancellationToken)
         {
+            var cacheKey = $"dashboard_{request.FromDate?.Ticks ?? 0}_{request.ToDate?.Ticks ?? 0}";
+
+            var cachedResponse = await _cacheService.GetAsync<DashboardResponse>(cacheKey, cancellationToken);
+            if (cachedResponse is not null)
+            {
+                return Result<DashboardResponse>.Success(cachedResponse);
+            }
+
             using var connection = _sqlConnectionFactory.CreateConnection();
 
             DateTime fromDate = request.FromDate.HasValue
@@ -172,6 +185,13 @@ namespace Dashboard.Application.Dashboard.Queries.GetDashboard
                 cashierPerformances,
                 paymentMethodsSummary,
                 lowStockList);
+
+            await _cacheService.SetAsync(
+                cacheKey,
+                dashboard,
+                absoluteExpiration: TimeSpan.FromMinutes(2),
+                slidingExpiration: TimeSpan.FromMinutes(1),
+                ct: cancellationToken);
 
             return Result<DashboardResponse>.Success(dashboard);
         }
