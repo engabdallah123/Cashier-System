@@ -267,4 +267,95 @@ namespace POS.Desktop.Services.Api
         DateTime CreatedAt);
 
     public record OnlineProductLookupResult(string Barcode, string? NameAr, string? NameEn, string? ImageUrl, byte[]? ImageBytes);
+
+    // Returns DTOs
+    public record SalesReturnItemRequest(
+        Guid ProductId,
+        Guid OriginalSaleItemId,
+        decimal Quantity,
+        decimal UnitPrice,
+        decimal Tax = 0,
+        string? Reason = null);
+
+    public record CreateSalesReturnRequest(
+        Guid OriginalSaleId,
+        Guid CashierId,
+        Guid ShiftId,
+        List<SalesReturnItemRequest> Items,
+        Guid? CustomerId = null,
+        int RefundMethod = 1,
+        string? Reason = null,
+        string? Notes = null);
+
+    public record SalesReturnDto(
+        Guid Id,
+        string ReturnNumber,
+        Guid OriginalSaleId,
+        Guid CashierId,
+        string? CashierName,
+        Guid? CustomerId,
+        string? CustomerName,
+        Guid ShiftId,
+        DateTime ReturnDate,
+        decimal SubTotal,
+        decimal TaxAmount,
+        decimal TotalAmount,
+        string RefundMethod,
+        string? Reason,
+        string? Notes,
+        string Status);
+
+    public record PurchaseReturnItemRequest(
+        Guid ProductId,
+        decimal Quantity,
+        decimal UnitCost,
+        decimal Tax = 0);
+
+    public record CreatePurchaseReturnRequest(
+        Guid OriginalPurchaseId,
+        Guid SupplierId,
+        Guid CreatedByUserId,
+        List<PurchaseReturnItemRequest> Items,
+        string? Reason = null,
+        string? Notes = null);
+
+    public record PurchaseReturnDto(
+        Guid Id,
+        string ReturnNumber,
+        Guid OriginalPurchaseId,
+        Guid SupplierId,
+        string? SupplierName,
+        DateTime ReturnDate,
+        decimal SubTotal,
+        decimal TaxAmount,
+        decimal TotalAmount,
+        string? Reason,
+        string? Notes,
+        string Status);
+
+    // Debts DTOs
+    public record CustomerDebtDto(
+        Guid SaleId,
+        string InvoiceNumber,
+        DateTime SaleDate,
+        Guid? CustomerId,
+        string? CustomerName,
+        string? CustomerPhone,
+        decimal TotalAmount,
+        decimal PaidAmount,
+        decimal RemainingAmount,
+        string PaymentMethod,
+        string Status);
+
+    public record SupplierDebtDto(
+        Guid PurchaseId,
+        string InvoiceNumber,
+        DateTime PurchaseDate,
+        Guid SupplierId,
+        string? SupplierName,
+        string? SupplierPhone,
+        decimal TotalAmount,
+        decimal PaidAmount,
+        decimal RemainingAmount,
+        string Status);
 }

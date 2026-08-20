@@ -1,0 +1,495 @@
+﻿@page "/debts"
+@using Microsoft.AspNetCore.Authorization
+@using global::POS.Desktop.Services.Api
+@attribute [Authorize]
+@inject PosApiClient ApiClient
+
+<div>
+    <div class="page-header">
+        <div>
+            <h2 class="page-title">إدارة الديون والفواتير غير المسددة</h2>
+            <p class="page-subtitle">نظام وصول سريع وفلترة ذكية لديون العملاء ومستحقات الموردين مع إمكانية التحصيل والسداد الفوري</p>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.85rem 1.25rem; border-radius: 0.6rem; font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fa-solid fa-circle-exclamation"></i> @errorMessage
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div style="background-color: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: var(--accent-emerald); padding: 0.85rem 1.25rem; border-radius: 0.6rem; font-weight: 600; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fa-solid fa-circle-check"></i> @successMessage
+        </div>
+    }
+
+    <!-- KPI Summary Cards -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+        <div class="card" style="border-right: 4px solid var(--accent-red, #f87171); padding: 1.25rem;">
+            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                <i class="fa-solid fa-hand-holding-dollar me-1" style="color: #f87171;"></i> إجمالي ديون العملاء (لنا)
+            </div>
+            <div style="font-size: 1.5rem; font-weight: 800; color: #f87171;">
+                @TotalCustomerDebts.ToString("N2") ج.م
+            </div>
+            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem;">
+                @customerDebts.Count فاتورة مبيعات غير مسددة بالكامل
+            </div>
+        </div>
+
+        <div class="card" style="border-right: 4px solid var(--accent-amber, #fbbf24); padding: 1.25rem;">
+            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                <i class="fa-solid fa-file-invoice-dollar me-1" style="color: #fbbf24;"></i> إجمالي مستحقات الموردين (علينا)
+            </div>
+            <div style="font-size: 1.5rem; font-weight: 800; color: #fbbf24;">
+                @TotalSupplierDebts.ToString("N2") ج.م
+            </div>
+            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem;">
+                @supplierDebts.Count فاتورة شراء متبقي عليها دفعات
+            </div>
+        </div>
+
+        <div class="card" style="border-right: 4px solid var(--accent-indigo, #818cf8); padding: 1.25rem;">
+            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.35rem;">
+                <i class="fa-solid fa-scale-balanced me-1" style="color: #818cf8;"></i> صافي مركز المديونية
+            </div>
+            <div style="font-size: 1.5rem; font-weight: 800; color: @(TotalCustomerDebts >= TotalSupplierDebts ? "var(--accent-emerald)" : "#f87171");">
+                @((TotalCustomerDebts - TotalSupplierDebts).ToString("N2")) ج.م
+            </div>
+            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 0.25rem;">
+                @(TotalCustomerDebts >= TotalSupplierDebts ? "فائض مستحق لصالح المتجر" : "عجز مستحق على المتجر")
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs & Smart Filter -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; flex-wrap: wrap; gap: 1rem;">
+        <div style="display: flex; gap: 0.5rem;">
+            <button class="btn @(activeTab == "customers" ? "btn-primary" : "btn-secondary")" @onclick='() => SetTab("customers")'>
+                <i class="fa-solid fa-users me-1"></i> ديون العملاء (@filteredCustomerDebts.Count)
+            </button>
+            <button class="btn @(activeTab == "suppliers" ? "btn-primary" : "btn-secondary")" @onclick='() => SetTab("suppliers")'>
+                <i class="fa-solid fa-truck-field me-1"></i> مستحقات الموردين (@filteredSupplierDebts.Count)
+            </button>
+        </div>
+
+        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+            <div class="search-box" style="min-width: 280px;">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input @bind="searchQuery" @bind:event="oninput" @onkeyup="ApplyFilter" placeholder="بحث ذكي بالاسم أو الهاتف أو رقم الفاتورة..." />
+            </div>
+
+            <select class="form-control" style="width: auto; padding: 0.45rem 0.8rem;" @bind="sortBy" @bind:after="ApplyFilter">
+                <option value="date_desc">الأحدث تاريخاً</option>
+                <option value="amount_desc">الأعلى مديونية</option>
+                <option value="amount_asc">الأقل مديونية</option>
+            </select>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div style="text-align: center; color: var(--text-muted); padding: 3rem;">
+            <i class="fa-solid fa-spinner fa-spin fa-2x" style="color: var(--accent-blue);"></i>
+            <p style="margin-top: 0.5rem;">جاري تحميل بيانات الديون والفواتير غير المسددة...</p>
+        </div>
+    }
+    else if (activeTab == "customers")
+    {
+        <!-- Customer Debts Table -->
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>رقم الفاتورة</th>
+                        <th>تاريخ البيع</th>
+                        <th>اسم العميل</th>
+                        <th>رقم الهاتف</th>
+                        <th>إجمالي الفاتورة</th>
+                        <th>المدفوع</th>
+                        <th>المتبقي (الدين)</th>
+                        <th style="width: 140px; text-align: center;">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!filteredCustomerDebts.Any())
+                    {
+                        <tr>
+                            <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+                                <i class="fa-solid fa-circle-check" style="font-size: 2rem; margin-bottom: 0.5rem; color: var(--accent-emerald); display: block;"></i>
+                                رائع! لا توجد ديون مسجلة على العملاء مطابقة للبحث.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var debt in PagedCustomerDebts)
+                        {
+                            <tr>
+                                <td><code style="background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 0.3rem;">@debt.InvoiceNumber</code></td>
+                                <td>@debt.SaleDate.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td><strong>@(string.IsNullOrWhiteSpace(debt.CustomerName) ? "عميل غير مسجل" : debt.CustomerName)</strong></td>
+                                <td>@(string.IsNullOrWhiteSpace(debt.CustomerPhone) ? "-" : debt.CustomerPhone)</td>
+                                <td>@debt.TotalAmount.ToString("N2") ج.م</td>
+                                <td style="color: var(--accent-emerald);">@debt.PaidAmount.ToString("N2") ج.م</td>
+                                <td style="color: #f87171; font-weight: 800; font-size: 1.05rem;">@debt.RemainingAmount.ToString("N2") ج.م</td>
+                                <td style="text-align: center;">
+                                    <button class="btn btn-primary" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" @onclick="() => OpenCustomerPayModal(debt)" title="تحصيل دفعة مديونية">
+                                        <i class="fa-solid fa-hand-holding-dollar me-1"></i> تحصيل دفعة
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <Pagination CurrentPage="@currentPage" TotalItems="@filteredCustomerDebts.Count" PageSize="@pageSize" OnPageChanged="@(p => currentPage = p)" OnPageSizeChanged="@(s => { pageSize = s; currentPage = 1; })" />
+    }
+    else
+    {
+        <!-- Supplier Debts Table -->
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>رقم الفاتورة</th>
+                        <th>تاريخ الشراء</th>
+                        <th>المورد</th>
+                        <th>رقم الهاتف</th>
+                        <th>إجمالي الفاتورة</th>
+                        <th>المدفوع</th>
+                        <th>المتبقي علينا</th>
+                        <th style="width: 140px; text-align: center;">الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!filteredSupplierDebts.Any())
+                    {
+                        <tr>
+                            <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
+                                <i class="fa-solid fa-circle-check" style="font-size: 2rem; margin-bottom: 0.5rem; color: var(--accent-emerald); display: block;"></i>
+                                ممتاز! جميع فواتير المشتريات مسددة بالكامل للموردين.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var debt in PagedSupplierDebts)
+                        {
+                            <tr>
+                                <td><code style="background: rgba(255,255,255,0.05); padding: 0.2rem 0.4rem; border-radius: 0.3rem;">@debt.InvoiceNumber</code></td>
+                                <td>@debt.PurchaseDate.ToString("yyyy-MM-dd")</td>
+                                <td><strong>@(string.IsNullOrWhiteSpace(debt.SupplierName) ? "مورد عام" : debt.SupplierName)</strong></td>
+                                <td>@(string.IsNullOrWhiteSpace(debt.SupplierPhone) ? "-" : debt.SupplierPhone)</td>
+                                <td>@debt.TotalAmount.ToString("N2") ج.م</td>
+                                <td style="color: var(--accent-emerald);">@debt.PaidAmount.ToString("N2") ج.م</td>
+                                <td style="color: var(--accent-amber); font-weight: 800; font-size: 1.05rem;">@debt.RemainingAmount.ToString("N2") ج.م</td>
+                                <td style="text-align: center;">
+                                    <button class="btn btn-primary" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" @onclick="() => OpenPayModal(debt)" title="سداد دفعة للمورد">
+                                        <i class="fa-solid fa-money-bill-wave me-1"></i> سداد دفعة
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <Pagination CurrentPage="@currentPage" TotalItems="@filteredSupplierDebts.Count" PageSize="@pageSize" OnPageChanged="@(p => currentPage = p)" OnPageSizeChanged="@(s => { pageSize = s; currentPage = 1; })" />
+    }
+</div>
+
+<!-- Modal: Collect Customer Debt Payment -->
+@if (selectedCustomerDebtToPay != null)
+{
+    <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1.5rem;">
+        <div class="card" style="width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--accent-emerald);">
+                    <i class="fa-solid fa-hand-holding-dollar me-2"></i> تحصيل دفعة من مديونية العميل
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="() => selectedCustomerDebtToPay = null">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div style="background: var(--bg-primary); padding: 0.85rem 1rem; border-radius: 0.5rem; font-size: 0.9rem; display: flex; flex-direction: column; gap: 0.4rem;">
+                <div><strong>فاتورة رقم:</strong> <code>@selectedCustomerDebtToPay.InvoiceNumber</code></div>
+                <div><strong>العميل:</strong> @selectedCustomerDebtToPay.CustomerName</div>
+                <div><strong>إجمالي الفاتورة:</strong> @selectedCustomerDebtToPay.TotalAmount.ToString("N2") ج.م</div>
+                <div><strong>المدفوع سابقاً:</strong> <span style="color: var(--accent-emerald);">@selectedCustomerDebtToPay.PaidAmount.ToString("N2") ج.م</span></div>
+                <div><strong>المبلغ المتبقي كدين:</strong> <span style="color: #f87171; font-weight: 800;">@selectedCustomerDebtToPay.RemainingAmount.ToString("N2") ج.م</span></div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(customerPayError))
+            {
+                <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.65rem 0.9rem; border-radius: 0.5rem; font-size: 0.85rem;">
+                    @customerPayError
+                </div>
+            }
+
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                    <label style="margin: 0;">المبلغ المحصل الآن (ج.م) <span style="color: var(--accent-red);">*</span></label>
+                    <button type="button" class="btn btn-secondary" style="padding: 0.15rem 0.5rem; font-size: 0.75rem;" @onclick="() => customerPayAmount = selectedCustomerDebtToPay.RemainingAmount">
+                        كامل المتبقي (@selectedCustomerDebtToPay.RemainingAmount.ToString("N2"))
+                    </button>
+                </div>
+                <input type="number" step="0.5" min="1" max="@selectedCustomerDebtToPay.RemainingAmount" class="form-control" @bind="customerPayAmount" />
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+                <button class="btn btn-secondary" @onclick="() => selectedCustomerDebtToPay = null" disabled="@isPayingCustomer">إلغاء</button>
+                <button class="btn btn-primary" @onclick="SubmitCustomerPayment" disabled="@(isPayingCustomer || customerPayAmount <= 0)">
+                    @if (isPayingCustomer)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري التسجيل...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-check me-1"></i> <span>تأكيد التحصيل وإيداع في الخزنة</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal: Pay Supplier Debt -->
+@if (selectedDebtToPay != null)
+{
+    <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1.5rem;">
+        <div class="card" style="width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 0.75rem;">
+                <h3 style="font-size: 1.15rem; font-weight: 700; color: var(--accent-indigo);">
+                    <i class="fa-solid fa-money-bill-wave me-2"></i> سداد دفعة للمورد
+                </h3>
+                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem;" @onclick="() => selectedDebtToPay = null">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div style="background: var(--bg-primary); padding: 0.85rem 1rem; border-radius: 0.5rem; font-size: 0.9rem; display: flex; flex-direction: column; gap: 0.4rem;">
+                <div><strong>فاتورة رقم:</strong> <code>@selectedDebtToPay.InvoiceNumber</code></div>
+                <div><strong>المورد:</strong> @selectedDebtToPay.SupplierName</div>
+                <div><strong>المبلغ المتبقي:</strong> <span style="color: var(--accent-amber); font-weight: 700;">@selectedDebtToPay.RemainingAmount.ToString("N2") ج.م</span></div>
+            </div>
+
+            @if (!string.IsNullOrEmpty(payError))
+            {
+                <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.65rem 0.9rem; border-radius: 0.5rem; font-size: 0.85rem;">
+                    @payError
+                </div>
+            }
+
+            <div class="form-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                    <label style="margin: 0;">المبلغ المراد سداده الآن (ج.م) <span style="color: var(--accent-red);">*</span></label>
+                    <button type="button" class="btn btn-secondary" style="padding: 0.15rem 0.5rem; font-size: 0.75rem;" @onclick="() => payAmount = selectedDebtToPay.RemainingAmount">
+                        كامل المتبقي (@selectedDebtToPay.RemainingAmount.ToString("N2"))
+                    </button>
+                </div>
+                <input type="number" step="0.5" min="1" max="@selectedDebtToPay.RemainingAmount" class="form-control" @bind="payAmount" />
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 0.75rem; border-top: 1px solid var(--border-color); padding-top: 0.75rem;">
+                <button class="btn btn-secondary" @onclick="() => selectedDebtToPay = null" disabled="@isPaying">إلغاء</button>
+                <button class="btn btn-primary" @onclick="SubmitPayment" disabled="@(isPaying || payAmount <= 0)">
+                    @if (isPaying)
+                    {
+                        <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري السداد...</span>
+                    }
+                    else
+                    {
+                        <i class="fa-solid fa-check me-1"></i> <span>تأكيد السداد</span>
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private string activeTab = "customers";
+    private List<CustomerDebtDto> customerDebts = new();
+    private List<CustomerDebtDto> filteredCustomerDebts = new();
+    private List<SupplierDebtDto> supplierDebts = new();
+    private List<SupplierDebtDto> filteredSupplierDebts = new();
+
+    private string searchQuery = string.Empty;
+    private string sortBy = "date_desc";
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string? successMessage;
+
+    private int currentPage = 1;
+    private int pageSize = 10;
+    private IEnumerable<CustomerDebtDto> PagedCustomerDebts => filteredCustomerDebts.Skip((currentPage - 1) * pageSize).Take(pageSize);
+    private IEnumerable<SupplierDebtDto> PagedSupplierDebts => filteredSupplierDebts.Skip((currentPage - 1) * pageSize).Take(pageSize);
+
+    private decimal TotalCustomerDebts => customerDebts.Sum(c => c.RemainingAmount);
+    private decimal TotalSupplierDebts => supplierDebts.Sum(s => s.RemainingAmount);
+
+    // Pay Supplier Modal
+    private SupplierDebtDto? selectedDebtToPay;
+    private decimal payAmount;
+    private bool isPaying = false;
+    private string? payError;
+
+    // Pay Customer Debt Modal
+    private CustomerDebtDto? selectedCustomerDebtToPay;
+    private decimal customerPayAmount;
+    private bool isPayingCustomer = false;
+    private string? customerPayError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDebts();
+    }
+
+    private async Task LoadDebts()
+    {
+        isLoading = true;
+        errorMessage = null;
+        try
+        {
+            customerDebts = await ApiClient.GetCustomerDebtsAsync();
+            supplierDebts = await ApiClient.GetSupplierDebtsAsync();
+            ApplyFilter();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"خطأ في تحميل الديون: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void SetTab(string tab)
+    {
+        activeTab = tab;
+        currentPage = 1;
+        ApplyFilter();
+    }
+
+    private void ApplyFilter()
+    {
+        currentPage = 1;
+
+        // Filter Customer Debts
+        if (string.IsNullOrWhiteSpace(searchQuery))
+        {
+            filteredCustomerDebts = customerDebts.ToList();
+        }
+        else
+        {
+            filteredCustomerDebts = customerDebts.Where(c =>
+                c.InvoiceNumber.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                (c.CustomerName != null && c.CustomerName.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)) ||
+                (c.CustomerPhone != null && c.CustomerPhone.Contains(searchQuery, StringComparison.OrdinalIgnoreCase))).ToList();
+        }
+
+        // Filter Supplier Debts
+        if (string.IsNullOrWhiteSpace(searchQuery))
+        {
+            filteredSupplierDebts = supplierDebts.ToList();
+        }
+        else
+        {
+            filteredSupplierDebts = supplierDebts.Where(s =>
+                s.InvoiceNumber.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                (s.SupplierName != null && s.SupplierName.Contains(searchQuery, StringComparison.OrdinalIgnoreCase)) ||
+                (s.SupplierPhone != null && s.SupplierPhone.Contains(searchQuery, StringComparison.OrdinalIgnoreCase))).ToList();
+        }
+
+        // Sort Customer Debts
+        filteredCustomerDebts = sortBy switch
+        {
+            "amount_desc" => filteredCustomerDebts.OrderByDescending(c => c.RemainingAmount).ToList(),
+            "amount_asc" => filteredCustomerDebts.OrderBy(c => c.RemainingAmount).ToList(),
+            _ => filteredCustomerDebts.OrderByDescending(c => c.SaleDate).ToList()
+        };
+
+        // Sort Supplier Debts
+        filteredSupplierDebts = sortBy switch
+        {
+            "amount_desc" => filteredSupplierDebts.OrderByDescending(s => s.RemainingAmount).ToList(),
+            "amount_asc" => filteredSupplierDebts.OrderBy(s => s.RemainingAmount).ToList(),
+            _ => filteredSupplierDebts.OrderByDescending(s => s.PurchaseDate).ToList()
+        };
+    }
+
+    private void OpenPayModal(SupplierDebtDto debt)
+    {
+        selectedDebtToPay = debt;
+        payAmount = debt.RemainingAmount;
+        payError = null;
+    }
+
+    private void OpenCustomerPayModal(CustomerDebtDto debt)
+    {
+        selectedCustomerDebtToPay = debt;
+        customerPayAmount = debt.RemainingAmount;
+        customerPayError = null;
+    }
+
+    private async Task SubmitCustomerPayment()
+    {
+        if (selectedCustomerDebtToPay == null || customerPayAmount <= 0) return;
+        if (customerPayAmount > selectedCustomerDebtToPay.RemainingAmount + 0.01m)
+        {
+            customerPayError = "المبلغ المحصل أكبر من المبلغ المتبقي على الفاتورة.";
+            return;
+        }
+
+        isPayingCustomer = true;
+        customerPayError = null;
+        var (success, err) = await ApiClient.PayCustomerDebtAsync(selectedCustomerDebtToPay.SaleId, customerPayAmount);
+        isPayingCustomer = false;
+
+        if (success)
+        {
+            successMessage = $"تم تسجيل تحصيل مبلغ {customerPayAmount:N2} ج.م من العميل ({selectedCustomerDebtToPay.CustomerName}) بنجاح.";
+            selectedCustomerDebtToPay = null;
+            await LoadDebts();
+        }
+        else
+        {
+            customerPayError = err ?? "فشل تسجيل تحصيل الدفعة.";
+        }
+    }
+
+    private async Task SubmitPayment()
+    {
+        if (selectedDebtToPay == null || payAmount <= 0) return;
+        if (payAmount > selectedDebtToPay.RemainingAmount + 0.01m)
+        {
+            payError = "مبلغ السداد أكبر من المبلغ المتبقي على الفاتورة.";
+            return;
+        }
+
+        isPaying = true;
+        payError = null;
+        var (success, err) = await ApiClient.PayPurchaseInvoiceAsync(selectedDebtToPay.PurchaseId, payAmount);
+        isPaying = false;
+
+        if (success)
+        {
+            successMessage = $"تم سداد مبلغ {payAmount:N2} ج.م للفاتورة {selectedDebtToPay.InvoiceNumber} بنجاح.";
+            selectedDebtToPay = null;
+            await LoadDebts();
+        }
+        else
+        {
+            payError = err ?? "فشل سداد الفاتورة.";
+        }
+    }
+}

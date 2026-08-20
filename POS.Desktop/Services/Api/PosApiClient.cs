@@ -753,6 +753,168 @@ namespace POS.Desktop.Services.Api
                 return (false, ex.Message);
             }
         }
+
+        // Single Invoices
+        public async Task<SaleDto?> GetSaleByIdAsync(Guid id)
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<SaleDto>($"api/sales/{id}");
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public async Task<PurchaseDto?> GetPurchaseByIdAsync(Guid id)
+        {
+            try
+            {
+                return await _http.GetFromJsonAsync<PurchaseDto>($"api/purchases/{id}");
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        // Sales Returns
+        public async Task<List<SalesReturnDto>> GetSalesReturnsAsync(Guid? cashierId = null, Guid? shiftId = null, int page = 1, int pageSize = 100)
+        {
+            try
+            {
+                var queryParams = new List<string> { $"page={page}", $"pageSize={pageSize}" };
+                if (cashierId.HasValue && cashierId.Value != Guid.Empty) queryParams.Add($"cashierId={cashierId.Value}");
+                if (shiftId.HasValue && shiftId.Value != Guid.Empty) queryParams.Add($"shiftId={shiftId.Value}");
+
+                var url = "api/returns/sales?" + string.Join("&", queryParams);
+                return await _http.GetFromJsonAsync<List<SalesReturnDto>>(url) ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> CreateSalesReturnAsync(CreateSalesReturnRequest req)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync("api/returns/sales", req);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل تسجيل مرتجع المبيعات."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        // Purchase Returns
+        public async Task<List<PurchaseReturnDto>> GetPurchaseReturnsAsync(Guid? supplierId = null, int page = 1, int pageSize = 100)
+        {
+            try
+            {
+                var queryParams = new List<string> { $"page={page}", $"pageSize={pageSize}" };
+                if (supplierId.HasValue && supplierId.Value != Guid.Empty) queryParams.Add($"supplierId={supplierId.Value}");
+
+                var url = "api/returns/purchases?" + string.Join("&", queryParams);
+                return await _http.GetFromJsonAsync<List<PurchaseReturnDto>>(url) ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> CreatePurchaseReturnAsync(CreatePurchaseReturnRequest req)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync("api/returns/purchases", req);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل تسجيل مرتجع المشتريات."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        // Debts
+        public async Task<List<CustomerDebtDto>> GetCustomerDebtsAsync(string? search = null, Guid? customerId = null)
+        {
+            try
+            {
+                var queryParams = new List<string>();
+                if (!string.IsNullOrWhiteSpace(search)) queryParams.Add($"search={Uri.EscapeDataString(search)}");
+                if (customerId.HasValue && customerId.Value != Guid.Empty) queryParams.Add($"customerId={customerId.Value}");
+
+                var url = "api/debts/customers" + (queryParams.Any() ? "?" + string.Join("&", queryParams) : "");
+                return await _http.GetFromJsonAsync<List<CustomerDebtDto>>(url) ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        public async Task<(bool Success, string? Error)> PayCustomerDebtAsync(Guid saleId, decimal amount)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync($"api/sales/{saleId}/pay", amount);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل تسجيل تحصيل دفعة من العميل."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
+        public async Task<List<SupplierDebtDto>> GetSupplierDebtsAsync(string? search = null, Guid? supplierId = null)
+        {
+            try
+            {
+                var queryParams = new List<string>();
+                if (!string.IsNullOrWhiteSpace(search)) queryParams.Add($"search={Uri.EscapeDataString(search)}");
+                if (supplierId.HasValue && supplierId.Value != Guid.Empty) queryParams.Add($"supplierId={supplierId.Value}");
+
+                var url = "api/debts/suppliers" + (queryParams.Any() ? "?" + string.Join("&", queryParams) : "");
+                return await _http.GetFromJsonAsync<List<SupplierDebtDto>>(url) ?? new();
+            }
+            catch
+            {
+                return new();
+            }
+        }
+
+        // Backup
+        public async Task<(byte[]? Data, string? FileName, string? Error)> ExportBackupAsync()
+        {
+            try
+            {
+                var res = await _http.GetAsync("api/backup/export");
+                if (!res.IsSuccessStatusCode)
+                {
+                    var err = await res.Content.ReadAsStringAsync();
+                    return (null, null, ExtractErrorMessage(err, "فشل تصدير النسخة الاحتياطية."));
+                }
+
+                var bytes = await res.Content.ReadAsByteArrayAsync();
+                var fileName = res.Content.Headers.ContentDisposition?.FileName?.Trim('"') ?? $"POS_Backup_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.json";
+                return (bytes, fileName, null);
+            }
+            catch (Exception ex)
+            {
+                return (null, null, ex.Message);
+            }
+        }
     }
 
     public record UserManagementDto(string Id, string FullName, string UserName, string Email, string Phone, bool IsActive, DateTime CreatedAt, string Role);

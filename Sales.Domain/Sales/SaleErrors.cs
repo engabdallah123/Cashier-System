@@ -39,5 +39,8 @@ namespace Sales.Domain.Sales
 
         public static readonly Error NoOpenShiftAvailable =
             new("Sale.NoOpenShiftAvailable", "لا يمكن إتمام البيع بدون وجود شفت مفتوح للكاشير.");
+
+        public static readonly Error CustomerRequiredForCredit =
+            new("Sale.CustomerRequiredForCredit", "يجب تحديد عميل لتسجيل فاتورة بالآجل أو دفع جزء من المبلغ.");
     }
 }
