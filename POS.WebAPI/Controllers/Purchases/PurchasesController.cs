@@ -3,8 +3,8 @@ using Microsoft.AspNetCore.Mvc;
 using Purchases.Application.Purchases.Commands.CreatePurchase;
 using Purchases.Application.Purchases.Commands.ReceivePurchase;
 using Purchases.Application.Purchases.Queries.GetPurchases;
-
 using Purchases.Application.Purchases.Commands.PayPurchaseInvoice;
+using Purchases.Application.Purchases.Queries.GetPurchaseById;
 
 namespace POS.WebAPI.Controllers.Purchases
 {
@@ -55,6 +55,16 @@ namespace POS.WebAPI.Controllers.Purchases
             var result = await _sender.Send(new GetPurchasesQuery(supplierId, page, pageSize), ct);
             if (result.IsFailure)
                 return BadRequest(result.Error);
+
+            return Ok(result.Value);
+        }
+
+        [HttpGet("{id:guid}")]
+        public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+        {
+            var result = await _sender.Send(new GetPurchaseByIdQuery(id), ct);
+            if (result.IsFailure)
+                return NotFound(result.Error);
 
             return Ok(result.Value);
         }

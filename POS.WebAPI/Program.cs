@@ -25,6 +25,13 @@ using Settings.Infrastructre.Database;
 using Shifts.Application;
 using Shifts.Infrastructre;
 
+using Microsoft.EntityFrameworkCore;
+using Purchases.Infrastructre.Database;
+using Returns.Infrastructre.Database;
+using Sales.Infrastructre.Database;
+using Expenses.Infrastructre.Database;
+using Shifts.Infrastructre.Database;
+
 namespace POS.WebAPI
 {
     public class Program
@@ -99,7 +106,10 @@ namespace POS.WebAPI
 
             var app = builder.Build();
 
-            // Seed Initial Data
+            // 1. Auto-Apply Database Migrations for all modules
+            await ApplyMigrationsAsync(app.Services);
+
+            // 2. Seed Initial Data
             await IdentityDataSeeder.SeedAsync(app.Services);
             await SettingsDataSeeder.SeedAsync(app.Services);
             await AuditDataSeeder.SeedAsync(app.Services);
@@ -122,6 +132,37 @@ namespace POS.WebAPI
             app.MapControllers();
 
             app.Run();
+        }
+
+        private static async Task ApplyMigrationsAsync(IServiceProvider services)
+        {
+            using var scope = services.CreateScope();
+            var sp = scope.ServiceProvider;
+
+            var dbContexts = new DbContext[]
+            {
+                sp.GetRequiredService<IdentityModuleDbContext>(),
+                sp.GetRequiredService<ShiftsDbContext>(),
+                sp.GetRequiredService<InventoryDbContext>(),
+                sp.GetRequiredService<PurchasesDbContext>(),
+                sp.GetRequiredService<SalesDbContext>(),
+                sp.GetRequiredService<ReturnsDbContext>(),
+                sp.GetRequiredService<ExpensesDbContext>(),
+                sp.GetRequiredService<SettingsDbContext>(),
+                sp.GetRequiredService<AuditDbContext>()
+            };
+
+            foreach (var context in dbContexts)
+            {
+                try
+                {
+                    await context.Database.MigrateAsync();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Migration Notice] {context.GetType().Name}: {ex.Message}");
+                }
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Sales.Application.Sales.Commands.CreateSale;
+using Sales.Application.Sales.Queries.GetSaleById;
 using Sales.Application.Sales.Queries.GetSalePdf;
 using Sales.Application.Sales.Queries.GetSaleReceipt;
 using Sales.Application.Sales.Queries.GetSales;
@@ -44,6 +45,26 @@ namespace POS.WebAPI.Controllers.Sales
                 return BadRequest(result.Error);
 
             return Ok(result.Value);
+        }
+
+        [HttpGet("{id:guid}")]
+        public async Task<IActionResult> GetById(Guid id, CancellationToken ct)
+        {
+            var result = await _sender.Send(new GetSaleByIdQuery(id), ct);
+            if (result.IsFailure)
+                return NotFound(result.Error);
+
+            return Ok(result.Value);
+        }
+
+        [HttpPost("{id:guid}/pay")]
+        public async Task<IActionResult> Pay(Guid id, [FromBody] decimal amount, CancellationToken ct)
+        {
+            var result = await _sender.Send(new global::Sales.Application.Sales.Commands.PaySaleInvoice.PaySaleInvoiceCommand(id, amount), ct);
+            if (result.IsFailure)
+                return BadRequest(result.Error);
+
+            return NoContent();
         }
 
         [HttpGet("{id:guid}/receipt")]

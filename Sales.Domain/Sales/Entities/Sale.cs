@@ -88,13 +88,31 @@ namespace Sales.Domain.Sales.Entities
 
             CalculateTotals();
 
-            if (PaidAmount + 0.01m < TotalAmount && !PaymentMethod.Equals("Credit", StringComparison.OrdinalIgnoreCase))
-                return Result.Failure(SaleErrors.InsufficientPaidAmount);
+            // إذا كان المبلغ المدفوع أقل من الإجمالي، يُسمح بذلك كـ آجل / دفع جزئي فقط إذا تم تحديد عميل، أو كانت طريقة الدفع آجل (Credit)
+            if (PaidAmount + 0.01m < TotalAmount && !PaymentMethod.Equals("Credit", StringComparison.OrdinalIgnoreCase) && !CustomerId.HasValue)
+                return Result.Failure(SaleErrors.CustomerRequiredForCredit);
 
             ChangeAmount = PaidAmount > TotalAmount ? PaidAmount - TotalAmount : 0;
             Status = SaleStatus.Completed;
 
             RaiseDomainEvent(new SaleCompletedIntegrationEvent(Id, ShiftId, TotalAmount, PaymentMethod));
+            return Result.Success();
+        }
+
+        public Result AddPayment(decimal amount)
+        {
+            if (amount <= 0)
+                return Result.Failure(new Error("Sale.InvalidPaymentAmount", "مبلغ السداد يجب أن يكون أكبر من صفر."));
+
+            var remaining = TotalAmount - PaidAmount;
+            if (remaining <= 0.001m)
+                return Result.Failure(new Error("Sale.AlreadyFullyPaid", "الفاتورة مسددة بالكامل بالفعل."));
+
+            if (amount > remaining + 0.01m)
+                return Result.Failure(new Error("Sale.PaymentExceedsRemaining", $"مبلغ السداد ({amount:N2} ج.م) أكبر من المبلغ المتبقي على الفاتورة ({remaining:N2} ج.م)."));
+
+            PaidAmount += amount;
+            CalculateTotals();
             return Result.Success();
         }
 

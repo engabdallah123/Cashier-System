@@ -1,0 +1,271 @@
+﻿@page "/backup"
+@using Microsoft.AspNetCore.Authorization
+@using global::POS.Desktop.Services.Api
+@using System.IO
+@using System.Diagnostics
+@attribute [Authorize(Roles = "Admin,Manager,Administrator")]
+@inject PosApiClient ApiClient
+
+<div style="max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 1.5rem;">
+    <div>
+        <h2 style="font-weight: 700;">النسخ الاحتياطي وتأمين البيانات (Backup)</h2>
+        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
+            تصدير وحفظ نسخة احتياطية شاملة لجميع بيانات المتجر (المنتجات، المبيعات، المشتريات، المرتجعات، العملاء، والمصروفات) في مسار تختاره
+        </p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(successMessage))
+    {
+        <div style="background-color: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.3); color: var(--accent-emerald); padding: 0.85rem 1.25rem; border-radius: 0.6rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fa-solid fa-circle-check"></i> @successMessage
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div style="background-color: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; padding: 0.85rem 1.25rem; border-radius: 0.6rem; font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+            <i class="fa-solid fa-circle-exclamation"></i> @errorMessage
+        </div>
+    }
+
+    <!-- Backup Configuration Card -->
+    <div class="card" style="display: flex; flex-direction: column; gap: 1.25rem;">
+        <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--accent-indigo);">
+            <i class="fa-solid fa-folder-open me-2"></i> تحديد مسار حفظ النسخ الاحتياطية
+        </h3>
+
+        <div class="form-group">
+            <label>مجلد الحفظ على جهاز الكمبيوتر <span style="color: var(--accent-red);">*</span></label>
+            <div style="display: flex; gap: 0.5rem;">
+                <input class="form-control" @bind="backupFolderPath" placeholder="مثال: C:\POS_Backups أو D:\CashierBackup..." />
+                <button class="btn btn-secondary" style="white-space: nowrap; padding: 0 1.25rem;" @onclick="BrowseFolder">
+                    <i class="fa-solid fa-folder-open me-1"></i> استعراض...
+                </button>
+            </div>
+            <span style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                يمكنك تحديد مجلد على فلاشة USB أو قرص خارجي أو مسار محلي لضمان بقاء البيانات في أمان.
+            </span>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--border-color); padding-top: 1rem; flex-wrap: wrap; gap: 1rem;">
+            <button class="btn btn-secondary" @onclick="OpenFolderInExplorer" disabled="@(!Directory.Exists(backupFolderPath))">
+                <i class="fa-solid fa-arrow-up-right-from-square me-1"></i> فتح المجلد في Windows Explorer
+            </button>
+
+            <button class="btn btn-primary" style="padding: 0.85rem 2rem; font-size: 1rem;" disabled="@isExporting" @onclick="ExportBackup">
+                @if (isExporting)
+                {
+                    <i class="fa-solid fa-spinner fa-spin me-1"></i> <span>جاري إنشاء النسخة الاحتياطية وتصديرها...</span>
+                }
+                else
+                {
+                    <i class="fa-solid fa-shield-halved me-1"></i> <span>إنشاء وحفظ نسخة احتياطية الآن</span>
+                }
+            </button>
+        </div>
+    </div>
+
+    <!-- Existing Backups in Selected Folder -->
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--accent-indigo);">
+                <i class="fa-solid fa-clock-rotate-left me-2"></i> النسخ الاحتياطية المتوفرة في المجلد المحدد
+            </h3>
+            <button class="btn btn-secondary" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" @onclick="RefreshExistingBackups">
+                <i class="fa-solid fa-arrows-rotate me-1"></i> تحديث
+            </button>
+        </div>
+
+        <div class="table-container">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>اسم ملف النسخة</th>
+                        <th>تاريخ الحفظ</th>
+                        <th>الحجم</th>
+                        <th style="width: 100px; text-align: center;">الحالة</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (!existingBackups.Any())
+                    {
+                        <tr>
+                            <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 2rem;">
+                                لا توجد ملفات نسخ احتياطية سابقة في هذا المجلد.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var file in existingBackups)
+                        {
+                            <tr>
+                                <td>
+                                    <i class="fa-solid fa-file-code me-2" style="color: var(--accent-blue);"></i>
+                                    <code>@file.Name</code>
+                                </td>
+                                <td>@file.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                <td>@((file.Length / 1024.0).ToString("N1")) KB</td>
+                                <td style="text-align: center;">
+                                    <span class="badge badge-green">جاهزة للاسترجاع</span>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private string backupFolderPath = string.Empty;
+    private bool isExporting = false;
+    private string? successMessage;
+    private string? errorMessage;
+
+    public class BackupFileInfo
+    {
+        public string Name { get; set; } = string.Empty;
+        public string FullPath { get; set; } = string.Empty;
+        public long Length { get; set; }
+        public DateTime LastWriteTime { get; set; }
+    }
+
+    private List<BackupFileInfo> existingBackups = new();
+
+    protected override void OnInitialized()
+    {
+        var defaultFolder = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            "POS_Cashier_Backups");
+
+        backupFolderPath = defaultFolder;
+
+        try
+        {
+            if (!Directory.Exists(backupFolderPath))
+            {
+                Directory.CreateDirectory(backupFolderPath);
+            }
+        }
+        catch { }
+
+        RefreshExistingBackups();
+    }
+
+    private void BrowseFolder()
+    {
+        try
+        {
+            var dialog = new Microsoft.Win32.OpenFolderDialog
+            {
+                Title = "اختر مجلد حفظ النسخ الاحتياطية",
+                InitialDirectory = Directory.Exists(backupFolderPath) ? backupFolderPath : Environment.GetFolderPath(Environment.SpecialFolder.Desktop)
+            };
+
+            if (dialog.ShowDialog() == true && !string.IsNullOrWhiteSpace(dialog.FolderName))
+            {
+                backupFolderPath = dialog.FolderName;
+                RefreshExistingBackups();
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"تعذر فتح نافذة اختيار المجلد: {ex.Message}";
+        }
+    }
+
+    private void RefreshExistingBackups()
+    {
+        existingBackups.Clear();
+        if (string.IsNullOrWhiteSpace(backupFolderPath) || !Directory.Exists(backupFolderPath))
+            return;
+
+        try
+        {
+            var dir = new DirectoryInfo(backupFolderPath);
+            var files = dir.GetFiles("POS_Backup_*.json")
+                           .OrderByDescending(f => f.LastWriteTime)
+                           .Select(f => new BackupFileInfo
+                           {
+                               Name = f.Name,
+                               FullPath = f.FullName,
+                               Length = f.Length,
+                               LastWriteTime = f.LastWriteTime
+                           }).ToList();
+
+            existingBackups = files;
+        }
+        catch { }
+    }
+
+    private async Task ExportBackup()
+    {
+        if (string.IsNullOrWhiteSpace(backupFolderPath))
+        {
+            errorMessage = "يرجى تحديد مسار مجلد الحفظ أولاً.";
+            return;
+        }
+
+        try
+        {
+            if (!Directory.Exists(backupFolderPath))
+            {
+                Directory.CreateDirectory(backupFolderPath);
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"لا يمكن إنشاء أو الوصول إلى المجلد المحدد: {ex.Message}";
+            return;
+        }
+
+        isExporting = true;
+        successMessage = null;
+        errorMessage = null;
+
+        var (data, fileName, err) = await ApiClient.ExportBackupAsync();
+        isExporting = false;
+
+        if (data != null && data.Length > 0)
+        {
+            try
+            {
+                var targetFile = Path.Combine(backupFolderPath, fileName ?? $"POS_Backup_{DateTime.Now:yyyy-MM-dd_HH-mm-ss}.json");
+                await File.WriteAllBytesAsync(targetFile, data);
+
+                successMessage = $"تم حفظ النسخة الاحتياطية بنجاح في: {targetFile} (الحجم: {(data.Length / 1024.0):N1} KB)";
+                RefreshExistingBackups();
+            }
+            catch (Exception ex)
+            {
+                errorMessage = $"تم تحميل النسخة بنجاح ولكن فشل كتابة الملف على القرص: {ex.Message}";
+            }
+        }
+        else
+        {
+            errorMessage = err ?? "فشل تصدير النسخة الاحتياطية من السيرفر.";
+        }
+    }
+
+    private void OpenFolderInExplorer()
+    {
+        try
+        {
+            if (Directory.Exists(backupFolderPath))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = backupFolderPath,
+                    UseShellExecute = true,
+                    Verb = "open"
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"تعذر فتح المجلد: {ex.Message}";
+        }
+    }
+}

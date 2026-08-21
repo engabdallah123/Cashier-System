@@ -87,7 +87,7 @@ namespace Shifts.Domain.Shifts.Entities
             return Result.Success();
         }
 
-        public Result RecordSale(decimal totalAmount, decimal discountAmount, decimal taxAmount, string paymentMethod)
+        public Result RecordSale(decimal totalAmount, decimal discountAmount, decimal taxAmount, string paymentMethod, decimal paidAmount = -1)
         {
             if (Status != ShiftStatus.Open)
                 return Result.Failure(ShiftErrors.NotOpen);
@@ -97,27 +97,50 @@ namespace Shifts.Domain.Shifts.Entities
             TotalTax += taxAmount;
             TotalInvoices++;
 
+            var actualPaid = (paidAmount >= 0) ? Math.Min(paidAmount, totalAmount) : totalAmount;
+            var creditAmount = Math.Max(0, totalAmount - actualPaid);
+
             switch (paymentMethod.Trim().ToLowerInvariant())
             {
                 case "cash":
-                    TotalCash += totalAmount;
+                    TotalCash += actualPaid;
+                    TotalCredit += creditAmount;
                     break;
                 case "card":
-                    TotalCard += totalAmount;
+                case "visa":
+                    TotalCard += actualPaid;
+                    TotalCredit += creditAmount;
                     break;
                 case "mobilewallet":
                 case "wallet":
-                    TotalWallet += totalAmount;
+                    TotalWallet += actualPaid;
+                    TotalCredit += creditAmount;
                     break;
                 case "credit":
-                    TotalCredit += totalAmount;
+                    TotalCash += actualPaid;
+                    TotalCredit += creditAmount;
                     break;
                 default:
-                    TotalCash += totalAmount;
+                    TotalCash += actualPaid;
+                    TotalCredit += creditAmount;
                     break;
             }
 
             SystemCash = TotalCash;
+            return Result.Success();
+        }
+
+        public Result RecordDebtCollection(decimal amount, string method = "Cash")
+        {
+            if (Status != ShiftStatus.Open)
+                return Result.Failure(ShiftErrors.NotOpen);
+
+            if (method.Equals("Cash", StringComparison.OrdinalIgnoreCase))
+            {
+                TotalCash += amount;
+                TotalCredit = Math.Max(0, TotalCredit - amount);
+                SystemCash = TotalCash;
+            }
             return Result.Success();
         }
 

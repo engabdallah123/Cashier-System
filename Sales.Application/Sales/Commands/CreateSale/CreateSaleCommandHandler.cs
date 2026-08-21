@@ -100,7 +100,7 @@ namespace Sales.Application.Sales.Commands.CreateSale
             }
 
             // 6. تحديث إجماليات الشفت
-            shift.RecordSale(sale.TotalAmount, sale.DiscountAmount, sale.TaxAmount, sale.PaymentMethod);
+            shift.RecordSale(sale.TotalAmount, sale.DiscountAmount, sale.TaxAmount, sale.PaymentMethod, sale.PaidAmount);
             _shiftsUnitOfWork.ShiftRepository.Update(shift);
 
             // 7. حفظ التغييرات في كل الوجهات
