@@ -22,7 +22,7 @@ namespace Purchases.Application.Purchases.Commands.ReceivePurchase
 
         public async Task<Result> Handle(ReceivePurchaseCommand request, CancellationToken cancellationToken)
         {
-            var purchase = await _purchasesUnitOfWork.PurchaseRepository.GetByIdAsync(request.PurchaseId);
+            var purchase = await _purchasesUnitOfWork.PurchaseRepository.FindAsync(p => p.Id == request.PurchaseId, new[] { "Items" });
             if (purchase is null)
                 return Result.Failure(PurchaseErrors.NotFound(request.PurchaseId));
 

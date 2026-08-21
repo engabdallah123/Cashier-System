@@ -1,3 +1,5 @@
+using Inventory.Domain;
+using Inventory.Domain.Stock.StockMovements;
 using POS.Shared.Application.Messaging;
 using POS.Shared.Domain;
 using Purchases.Domain;
@@ -7,11 +9,15 @@ namespace Purchases.Application.Purchases.Commands.CreatePurchase
 {
     internal sealed class CreatePurchaseCommandHandler : ICommandHandler<CreatePurchaseCommand, Guid>
     {
-        private readonly IPurchasesUnitOfWork _unitOfWork;
+        private readonly IPurchasesUnitOfWork _purchasesUnitOfWork;
+        private readonly IInventoryUnitOfWork _inventoryUnitOfWork;
 
-        public CreatePurchaseCommandHandler(IPurchasesUnitOfWork unitOfWork)
+        public CreatePurchaseCommandHandler(
+            IPurchasesUnitOfWork purchasesUnitOfWork,
+            IInventoryUnitOfWork inventoryUnitOfWork)
         {
-            _unitOfWork = unitOfWork;
+            _purchasesUnitOfWork = purchasesUnitOfWork;
+            _inventoryUnitOfWork = inventoryUnitOfWork;
         }
 
         public async Task<Result<Guid>> Handle(CreatePurchaseCommand request, CancellationToken cancellationToken)
@@ -36,8 +42,38 @@ namespace Purchases.Application.Purchases.Commands.CreatePurchase
                     return Result<Guid>.Failure(itemResult.Error);
             }
 
-            await _unitOfWork.PurchaseRepository.AddAsync(purchase);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
+            var receiveResult = purchase.Receive();
+            if (receiveResult.IsFailure)
+                return Result<Guid>.Failure(receiveResult.Error);
+
+            await _purchasesUnitOfWork.PurchaseRepository.AddAsync(purchase);
+
+            // زيادة رصيد المخزون وتسجيل حركة المخزون لكل عنصر في الفاتورة
+            foreach (var item in purchase.Items)
+            {
+                var product = await _inventoryUnitOfWork.ProductRepository.GetByIdAsync(item.ProductId, cancellationToken);
+                if (product is not null)
+                {
+                    product.AdjustStock(item.Quantity, allowNegativeStock: true);
+                    _inventoryUnitOfWork.ProductRepository.Update(product);
+
+                    var movementResult = StockMovement.Create(
+                        item.ProductId,
+                        item.Quantity,
+                        StockMovementType.Purchase,
+                        request.CreatedByUserId,
+                        reference: purchase.InvoiceNumber,
+                        notes: $"فاتورة شراء - رقم {purchase.InvoiceNumber}");
+
+                    if (movementResult.IsSuccess)
+                    {
+                        await _inventoryUnitOfWork.StockMovementRepository.AddAsync(movementResult.Value!);
+                    }
+                }
+            }
+
+            await _purchasesUnitOfWork.SaveChangesAsync(cancellationToken);
+            await _inventoryUnitOfWork.SaveChangesAsync(cancellationToken);
 
             return Result<Guid>.Success(purchase.Id);
         }

@@ -607,6 +607,21 @@ namespace POS.Desktop.Services.Api
             }
         }
 
+        public async Task<(bool Success, string? Error)> ReceivePurchaseAsync(Guid purchaseId, Guid userId)
+        {
+            try
+            {
+                var res = await _http.PostAsJsonAsync($"api/purchases/{purchaseId}/receive", userId);
+                if (res.IsSuccessStatusCode) return (true, null);
+                var err = await res.Content.ReadAsStringAsync();
+                return (false, ExtractErrorMessage(err, "فشل استلام فاتورة الشراء."));
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+
         public async Task<(bool Success, string? Error)> PayPurchaseInvoiceAsync(Guid purchaseId, decimal amount)
         {
             try
